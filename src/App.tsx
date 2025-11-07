@@ -1,0 +1,39 @@
+import { Routes, Route, Outlet } from "react-router-dom";
+import { Navbar } from "./components/navbar";
+import HomePage from "./pages/HomePage";
+import JobsPage from "./pages/JobsPage";
+import CreatePage from "./pages/CreatePage";
+import DashboardPage from "./pages/DashboardPage";
+import FreelancerPage from "./pages/FreelancerPage";
+import AdminPage from "./pages/AdminPage";
+import ApprovalsPage from "./pages/ApprovalsPage";
+import Debugger from "./pages/Debugger";
+
+const AppLayout = () => (
+  <>
+    <Navbar />
+    <div className="pt-16">
+      <Outlet />
+    </div>
+  </>
+);
+
+function App() {
+  return (
+    <Routes>
+      <Route element={<AppLayout />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/create" element={<CreatePage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/freelancer" element={<FreelancerPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/approvals" element={<ApprovalsPage />} />
+        <Route path="/debug" element={<Debugger />} />
+        <Route path="/debug/:contractName" element={<Debugger />} />
+      </Route>
+    </Routes>
+  );
+}
+
+export default App;
