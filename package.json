@@ -10,8 +10,7 @@
     "install:contracts": "npm install --workspace=packages && npm run build --workspace=packages",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier . --write",
-    "prepare": "husky"
+    "format": "prettier . --write"
   },
   "workspaces": [
     "packages/*"
@@ -81,7 +80,6 @@
     "geist": "^1.5.1",
     "glob": "^11.0.3",
     "globals": "^16.4.0",
-    "husky": "^9.1.7",
     "lint-staged": "^16.2.3",
     "postcss": "^8.5.6",
     "prettier": "3.6.2",

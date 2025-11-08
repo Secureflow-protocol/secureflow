@@ -3,7 +3,6 @@ import { useWeb3 } from "@/contexts/web3-context";
 import { useDelegation } from "@/contexts/delegation-context";
 import { CONTRACTS } from "@/lib/web3/config";
 
-
 export function useAdminStatus() {
   const { wallet, getContract } = useWeb3();
   const { getActiveDelegations, delegations } = useDelegation();
@@ -22,27 +21,46 @@ export function useAdminStatus() {
   const checkAdminStatus = async () => {
     setLoading(true);
     try {
+      // Check if contract address is set
+      if (!CONTRACTS.SECUREFLOW_ESCROW) {
+        console.warn("SECUREFLOW_ESCROW contract address not set");
+        setIsAdmin(false);
+        return;
+      }
+
       const contract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
       if (!contract) {
+        console.warn("Failed to get contract instance");
         setIsAdmin(false);
         return;
       }
 
       // Get the contract owner
       const owner = await contract.call("owner");
+      console.log("Contract owner:", owner);
+      console.log("Wallet address:", wallet.address);
+
+      if (!owner) {
+        console.warn("Owner not found in contract");
+        setIsAdmin(false);
+        return;
+      }
 
       // Check if current wallet is the owner
       const isOwner =
         owner.toString().toLowerCase() === wallet.address?.toLowerCase();
+      console.log("Is owner:", isOwner);
 
       // Also check if user has an active delegation granted TO their address
       const activeDelegations = getActiveDelegations();
       const hasDelegationForUser = activeDelegations.some(
-        (d) => d.delegatee.toLowerCase() === wallet.address?.toLowerCase(),
+        (d) => d.delegatee.toLowerCase() === wallet.address?.toLowerCase()
       );
+      console.log("Has delegation:", hasDelegationForUser);
 
       setIsAdmin(isOwner || hasDelegationForUser);
     } catch (error) {
+      console.error("Error checking admin status:", error);
       setIsAdmin(false);
     } finally {
       setLoading(false);

@@ -235,8 +235,10 @@ export default function CreateEscrowPage() {
     if (!formData.isOpenJob) {
       if (!formData.beneficiary) {
         errors.push("Beneficiary address is required for direct escrow");
-      } else if (!/^0x[a-fA-F0-9]{40}$/.test(formData.beneficiary)) {
-        errors.push("Beneficiary address must be a valid Ethereum address");
+      } else if (!/^G[A-Z0-9]{55}$/.test(formData.beneficiary)) {
+        errors.push(
+          "Beneficiary address must be a valid Stellar address (starts with G)"
+        );
       }
     }
 
@@ -270,6 +272,12 @@ export default function CreateEscrowPage() {
   };
 
   const handleSubmit = async () => {
+    console.log("=== handleSubmit STARTED ===");
+    console.log("Wallet state:", {
+      isConnected: wallet.isConnected,
+      address: wallet.address,
+    });
+
     if (!wallet.isConnected) {
       toast({
         title: "Wallet not connected",
@@ -290,19 +298,23 @@ export default function CreateEscrowPage() {
       return;
     }
 
-    // Allow both native tokens (GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF) and ERC20 tokens
-    if (!formData.token) {
-      toast({
-        title: "Invalid token address",
-        description: "Please select a token type",
-        variant: "destructive",
-      });
-      return;
-    }
+    // For native XLM, token can be empty string or null
+    // For custom tokens, token should be set
+    // This check is not needed - the contract handles both cases
+    console.log("Token check:", {
+      useNativeToken: formData.useNativeToken,
+      token: formData.token,
+    });
 
     setIsSubmitting(true);
 
     try {
+      console.log("handleSubmit called", {
+        walletConnected: wallet.isConnected,
+        walletAddress: wallet.address,
+        formData,
+      });
+
       // Stellar: Handle token approval if using a custom token (not native XLM)
       if (
         formData.token &&
@@ -318,6 +330,7 @@ export default function CreateEscrowPage() {
       }
 
       const escrowContract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
+      console.log("Got contract instance:", escrowContract);
       const milestoneDescriptions = formData.milestones.map(
         (m) => m.description
       );
@@ -335,9 +348,16 @@ export default function CreateEscrowPage() {
       );
 
       // Check native XLM balance using wallet balance
-      if (!formData.token || formData.token === "") {
+      // For native XLM (useNativeToken = true), token will be empty or null
+      if (formData.useNativeToken || !formData.token || formData.token === "") {
         const walletBalance = Number.parseFloat(wallet.balance || "0");
-        if (walletBalance < Number.parseFloat(formData.totalBudget)) {
+        const requiredBalance = Number.parseFloat(formData.totalBudget);
+        console.log("Balance check:", {
+          walletBalance,
+          requiredBalance,
+          hasEnough: walletBalance >= requiredBalance,
+        });
+        if (walletBalance < requiredBalance) {
           throw new Error(
             `Insufficient XLM balance. You have ${walletBalance.toFixed(4)} XLM but need ${formData.totalBudget} XLM.`
           );
@@ -373,21 +393,45 @@ export default function CreateEscrowPage() {
 
       while (txAttempts < maxTxAttempts) {
         try {
+          console.log("Attempting to send create_escrow transaction...", {
+            attempt: txAttempts + 1,
+            maxAttempts: maxTxAttempts,
+            args: {
+              depositor: wallet.address,
+              beneficiary: beneficiaryAddress || null,
+              arbiters,
+              required_confirmations: requiredConfirmations,
+              milestones,
+              token:
+                formData.token && formData.token !== "" ? formData.token : null,
+              total_amount: totalAmountInStroops.toString(),
+              duration: durationInSeconds,
+              project_title: formData.projectTitle,
+              project_description: formData.projectDescription,
+            },
+          });
+
           // Use the generated client's send method which expects an object
           // The generated client handles Option types automatically - pass null for None
-          await escrowContract.send("create_escrow", {
+          const txHash = await escrowContract.send("create_escrow", {
             depositor: wallet.address,
             beneficiary: beneficiaryAddress || null, // null for Option<Address>
             arbiters: arbiters, // arbiters array
             required_confirmations: requiredConfirmations,
             milestones: milestones,
             token:
-              formData.token && formData.token !== "" ? formData.token : null, // null for Option<Address>
+              formData.useNativeToken ||
+              !formData.token ||
+              formData.token === ""
+                ? null // null for native XLM
+                : formData.token, // custom token address
             total_amount: totalAmountInStroops,
             duration: durationInSeconds,
             project_title: formData.projectTitle,
             project_description: formData.projectDescription,
           });
+
+          console.log("Transaction sent successfully, hash:", txHash);
 
           toast({
             title: "Escrow Created!",
@@ -395,12 +439,17 @@ export default function CreateEscrowPage() {
           });
           break;
         } catch (txError: any) {
+          console.error("Transaction attempt failed:", txError);
           txAttempts++;
 
           if (txAttempts >= maxTxAttempts) {
+            console.error("Max transaction attempts reached, throwing error");
             throw txError;
           }
 
+          console.log(
+            `Retrying transaction in ${Math.pow(2, txAttempts) * 1000}ms...`
+          );
           // Wait before retry with exponential backoff
           const waitTime = Math.pow(2, txAttempts) * 1000; // 2s, 4s, 8s
           await new Promise((resolve) => setTimeout(resolve, waitTime));
@@ -416,6 +465,7 @@ export default function CreateEscrowPage() {
         navigate(formData.isOpenJob ? "/jobs" : "/dashboard");
       }, 2000);
     } catch (error: any) {
+      console.error("Error creating escrow:", error);
       let errorMessage = "Failed to create escrow";
 
       if (error.message?.includes("insufficient funds")) {
@@ -424,7 +474,10 @@ export default function CreateEscrowPage() {
         errorMessage = "Gas estimation failed. Please try again.";
       } else if (error.message?.includes("revert")) {
         errorMessage = "Transaction reverted. Please check your parameters.";
-      } else if (error.message?.includes("user rejected")) {
+      } else if (
+        error.message?.includes("user rejected") ||
+        error.message?.includes("rejected")
+      ) {
         errorMessage = "Transaction was rejected by user.";
       } else if (error.message?.includes("timeout")) {
         errorMessage = "Transaction timeout. Please try again.";
@@ -434,6 +487,11 @@ export default function CreateEscrowPage() {
       } else if (error.code === -32603) {
         errorMessage =
           "RPC error occurred. Please try again - this usually works on the second attempt.";
+      } else if (error.message?.includes("Wallet not connected")) {
+        errorMessage = "Wallet not connected. Please connect your wallet.";
+      } else if (error.message?.includes("Transaction signing failed")) {
+        errorMessage =
+          "Transaction signing failed. Please check your wallet connection.";
       } else {
         errorMessage = error.message || "Failed to create escrow";
       }
@@ -493,20 +551,20 @@ export default function CreateEscrowPage() {
         </div>
       )}
 
-      <div className="container mx-auto px-4 max-w-4xl">
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 text-center">
+          <h1 className="text-4xl md:text-5xl font-bold mb-3 text-center">
             Create New Escrow
           </h1>
-          <p className="text-xl text-muted-foreground text-center mb-12">
+          <p className="text-xl text-muted-foreground text-center mb-10">
             Set up a secure escrow with milestone-based payments
           </p>
 
-          <div className="flex items-center justify-center mb-12">
+          <div className="flex items-center justify-center mb-10">
             <div className="flex items-center gap-4">
               {[1, 2, 3].map((s) => (
                 <div key={s} className="flex items-center gap-4">
@@ -541,6 +599,7 @@ export default function CreateEscrowPage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
+                className="mb-6"
               >
                 <ProjectDetailsStep
                   formData={formData}
@@ -568,6 +627,7 @@ export default function CreateEscrowPage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
+                className="mb-6"
               >
                 <MilestonesStep
                   milestones={formData.milestones}
@@ -595,6 +655,7 @@ export default function CreateEscrowPage() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
+                className="mb-6"
               >
                 <ReviewStep
                   formData={formData}
@@ -607,7 +668,7 @@ export default function CreateEscrowPage() {
             )}
           </AnimatePresence>
 
-          <div className="flex justify-between mt-8">
+          <div className="flex justify-between mt-6">
             <Button
               type="button"
               variant="outline"

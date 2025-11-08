@@ -1,9 +1,6 @@
-
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Clock, DollarSign, User, Zap } from "lucide-react";
-import { useSmartAccount } from "@/contexts/smart-account-context";
+import { Clock, DollarSign, User, Zap } from "lucide-react";
+// Stellar doesn't use smart accounts - removed useSmartAccount import
 
 interface Milestone {
   description: string;
@@ -35,7 +32,8 @@ export function ReviewStep({
   isContractPaused,
   isOnCorrectNetwork = true,
 }: ReviewStepProps) {
-  const { isSmartAccountReady } = useSmartAccount();
+  // Stellar doesn't use smart accounts
+  const isSmartAccountReady = false;
   const totalMilestoneAmount = formData.milestones.reduce(
     (sum, milestone) => sum + Number.parseFloat(milestone.amount || "0"),
     0
@@ -51,11 +49,9 @@ export function ReviewStep({
         <CardTitle>Review & Confirm</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-4">
-          <div>
-            <h3 className="font-semibold text-lg mb-2">
-              {formData.projectTitle}
-            </h3>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <h3 className="font-semibold text-lg">{formData.projectTitle}</h3>
             <p className="text-muted-foreground">
               {formData.projectDescription}
             </p>
@@ -79,14 +75,14 @@ export function ReviewStep({
           </div>
 
           {formData.beneficiary && (
-            <div>
+            <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Beneficiary:</p>
               <p className="font-mono text-sm">{formData.beneficiary}</p>
             </div>
           )}
 
-          <div>
-            <h4 className="font-medium mb-2">
+          <div className="space-y-3">
+            <h4 className="font-medium">
               Milestones ({formData.milestones.length})
             </h4>
             <div className="space-y-2">
@@ -104,7 +100,7 @@ export function ReviewStep({
             </div>
           </div>
 
-          <div className="border-t pt-4">
+          <div className="border-t pt-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="font-medium">Total Milestone Amount:</span>
               <span className="font-semibold">
@@ -118,7 +114,7 @@ export function ReviewStep({
               </span>
             </div>
             {!isTotalValid && (
-              <p className="text-sm text-destructive mt-2">
+              <p className="text-sm text-destructive mt-3">
                 ⚠️ Milestone amounts don't match project budget
               </p>
             )}
@@ -128,7 +124,36 @@ export function ReviewStep({
         <div className="flex gap-4">
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log("Create Escrow button clicked", {
+                isSubmitting,
+                isContractPaused,
+                isTotalValid,
+                isOnCorrectNetwork,
+                onConfirmType: typeof onConfirm,
+                onConfirmExists: !!onConfirm,
+              });
+              if (
+                !isSubmitting &&
+                !isContractPaused &&
+                isTotalValid &&
+                isOnCorrectNetwork
+              ) {
+                console.log("Calling onConfirm() now...");
+                try {
+                  await onConfirm();
+                  console.log("onConfirm() completed successfully");
+                } catch (error) {
+                  console.error("Error in onConfirm():", error);
+                }
+              } else {
+                console.warn(
+                  "Button conditions not met, not calling onConfirm"
+                );
+              }
+            }}
             disabled={
               isSubmitting ||
               isContractPaused ||

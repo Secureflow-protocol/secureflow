@@ -1,5 +1,3 @@
-
-
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,10 +81,30 @@ export default function SmartAccountDemoPage() {
                 Smart Account Demo
               </h1>
               <p className="text-xl text-muted-foreground">
-                Showcasing Smart Account features for hackathon judges
+                Note: Smart Accounts are not available on Stellar
               </p>
             </div>
           </div>
+
+          <Card className="glass border-primary/20 p-6 mb-8">
+            <div className="text-center py-8">
+              <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h2 className="text-2xl font-bold mb-4">
+                Smart Accounts Not Available on Stellar
+              </h2>
+              <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
+                Stellar uses a different account model than Ethereum. On
+                Stellar, accounts are native to the network and don't require
+                smart account contracts. All transactions are signed directly by
+                the account owner.
+              </p>
+              <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
+                The SecureFlow escrow contract on Stellar works directly with
+                native Stellar accounts, providing the same functionality
+                without the need for smart account abstraction.
+              </p>
+            </div>
+          </Card>
 
           {/* Smart Account Status */}
           <Card className="glass border-primary/20 p-6 mb-8">

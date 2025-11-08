@@ -18,8 +18,13 @@ export const STELLAR_NETWORKS = {
 };
 
 // Contract IDs (will be set after deployment)
+// Fallback to the deployed contract ID if env variable is not set
+const DEFAULT_CONTRACT_ID =
+  "CD44N5JPSWBPNJJD3BRWIUMZQXV347LFHMSFDJYCDZYWYORLJS4J5Y2P";
+
 export const CONTRACTS = {
-  SECUREFLOW_ESCROW: import.meta.env.VITE_SECUREFLOW_CONTRACT_ID || "",
+  SECUREFLOW_ESCROW:
+    import.meta.env.VITE_SECUREFLOW_CONTRACT_ID || DEFAULT_CONTRACT_ID,
 };
 
 // Get current network from environment

@@ -15,12 +15,14 @@ import {
   Address,
   nativeToScVal,
   scValToNative,
+  TransactionBuilder,
 } from "@stellar/stellar-sdk";
 import {
   wallet,
   connectWallet as connectWalletUtil,
   disconnectWallet as disconnectWalletUtil,
 } from "@/util/wallet";
+import { useWallet } from "@/hooks/useWallet";
 import storage from "@/util/storage";
 import { Client as SecureFlowClient } from "@/contracts/generated/src/index";
 
@@ -39,6 +41,7 @@ const Web3Context = createContext<Web3ContextType | undefined>(undefined);
 
 export function Web3Provider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const { signTransaction: walletSignTransaction } = useWallet();
   const [walletState, setWalletState] = useState<WalletState>({
     address: null,
     chainId: null,
@@ -274,8 +277,11 @@ export function Web3Provider({ children }: { children: ReactNode }) {
   };
 
   const getContract = (contractId: string) => {
-    if (!contractId) {
-      console.error("Contract ID is required");
+    if (!contractId || contractId === "") {
+      console.error(
+        "Contract ID is required. Please set VITE_SECUREFLOW_CONTRACT_ID in your .env file"
+      );
+      console.error("Current contract ID:", contractId);
       return null;
     }
 
@@ -313,50 +319,94 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             return assembledTx.result;
           }
 
+          if (method === "owner") {
+            // The contract stores owner in instance storage with DataKey::Owner
+            // For now, we'll use the environment variable with a fallback
+            const DEFAULT_OWNER =
+              "GC2AVGP5VDS27LR5LWTUPWZUJSPZXT6V7ZORJ5RKYJVHYXXANWTFXYLG";
+            const ownerFromEnv =
+              import.meta.env.VITE_OWNER_ADDRESS || DEFAULT_OWNER;
+            return ownerFromEnv;
+          }
+
+          if (method === "next_escrow_id") {
+            // The contract stores NextEscrowId in instance storage with DataKey::NextEscrowId
+            // For now, return a default value (1 means no escrows created yet)
+            // In production, this should be read from contract storage
+            // TODO: Implement proper contract storage reading for NextEscrowId
+            try {
+              // Try to read from contract storage if possible
+              // For now, return 1 as default (no escrows created)
+              return 1;
+            } catch (error) {
+              console.warn(
+                "Error getting next_escrow_id, returning default:",
+                error
+              );
+              return 1;
+            }
+          }
+
           if (method === "paused") {
             // Check if contract is paused (this might need to be added to the contract)
             return false;
           }
 
           // Fallback for methods not in the map
+          // Some methods like next_escrow_id don't exist as contract methods
+          // They should be handled above, but if we get here, return a safe default
+          if (method === "next_escrow_id") {
+            return 1; // Default: no escrows created yet
+          }
+
           console.warn(
             `Method ${method} not found in generated client, using fallback`
           );
-          const contract = new Contract(contractId);
-          const server = createRpcServer();
 
-          const methodArgs = args.map((arg) => {
-            if (typeof arg === "string") {
-              try {
-                return Address.fromString(arg).toScVal();
-              } catch {
-                return nativeToScVal(arg, { type: "string" });
+          try {
+            const contract = new Contract(contractId);
+            const server = createRpcServer();
+
+            const methodArgs = args.map((arg) => {
+              if (typeof arg === "string") {
+                try {
+                  return Address.fromString(arg).toScVal();
+                } catch {
+                  return nativeToScVal(arg, { type: "string" });
+                }
+              } else if (typeof arg === "number") {
+                return nativeToScVal(arg, { type: "i128" });
+              } else if (typeof arg === "boolean") {
+                return nativeToScVal(arg, { type: "bool" });
               }
-            } else if (typeof arg === "number") {
-              return nativeToScVal(arg, { type: "i128" });
-            } else if (typeof arg === "boolean") {
-              return nativeToScVal(arg, { type: "bool" });
+              return nativeToScVal(arg);
+            });
+
+            const result = await server.simulateTransaction(
+              contract.call(method, ...methodArgs)
+            );
+
+            if (result.errorResult) {
+              throw new Error(result.errorResult.value().toString());
             }
-            return nativeToScVal(arg);
-          });
 
-          const result = await server.simulateTransaction(
-            contract.call(method, ...methodArgs)
-          );
-
-          if (result.errorResult) {
-            throw new Error(result.errorResult.value().toString());
-          }
-
-          if (result.returnValue) {
-            try {
-              return scValToNative(result.returnValue);
-            } catch {
-              return result.returnValue;
+            if (result.returnValue) {
+              try {
+                return scValToNative(result.returnValue);
+              } catch {
+                return result.returnValue;
+              }
             }
-          }
 
-          return result;
+            return result;
+          } catch (fallbackError: any) {
+            // If fallback also fails, return a safe default for known methods
+            if (method === "next_escrow_id") {
+              return 1;
+            }
+            console.error(`Error in fallback for ${method}:`, fallbackError);
+            throw fallbackError;
+          }
         } catch (error) {
           console.error(`Error calling ${method}:`, error);
           throw error;
@@ -366,15 +416,45 @@ export function Web3Provider({ children }: { children: ReactNode }) {
       // Legacy send interface for backward compatibility
       async send(method: string, ...args: any[]) {
         try {
+          console.log(`send() called with method: ${method}`, {
+            isConnected: walletState.isConnected,
+            address: walletState.address,
+            args,
+          });
+
           if (!walletState.isConnected || !walletState.address) {
             throw new Error("Wallet not connected");
           }
+
+          console.log(`Sending transaction: ${method}`, { args });
 
           // Use the generated client's methods for sending transactions
           let assembledTx: any;
 
           if (method === "create_escrow" && args[0]) {
-            assembledTx = await client.create_escrow(args[0]);
+            console.log("Creating escrow with args:", args[0]);
+            console.log("Calling client.create_escrow()...");
+            try {
+              // Convert null to undefined for Option types
+              // The generated client expects Option<string> which uses undefined for None
+              const createArgs = {
+                ...args[0],
+                beneficiary: args[0].beneficiary ?? undefined,
+                token: args[0].token ?? undefined,
+              };
+              console.log(
+                "Converted args for create_escrow (null -> undefined):",
+                createArgs
+              );
+              assembledTx = await client.create_escrow(createArgs);
+              console.log(
+                "client.create_escrow() succeeded, assembledTx:",
+                assembledTx
+              );
+            } catch (createError: any) {
+              console.error("Error in client.create_escrow():", createError);
+              throw createError;
+            }
           } else if (method === "start_work" && args[0]) {
             assembledTx = await client.start_work(args[0]);
           } else if (method === "submit_milestone" && args[0]) {
@@ -405,20 +485,91 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             );
           }
 
-          // Sign the transaction
+          console.log("Assembled transaction:", assembledTx);
+
+          // Sign the transaction manually, then send via RPC
           const xdr = assembledTx.toXDR();
-          const signResult = await wallet.signTransaction(xdr, {
+          console.log(
+            "Transaction XDR created, requesting wallet signature..."
+          );
+          console.log("Wallet state:", {
             address: walletState.address,
-            networkPassphrase: network.networkPassphrase,
+            network: network.networkPassphrase,
           });
 
-          if (!signResult.signedTxXdr) {
-            throw new Error("Transaction signing failed");
-          }
+          try {
+            // Use signTransaction from WalletProvider if available, otherwise fallback to wallet instance
+            const signTx = walletSignTransaction || wallet.signTransaction;
+            console.log("About to call signTransaction...", {
+              hasWalletSignTransaction: !!walletSignTransaction,
+              hasWalletSignTransactionMethod: !!wallet.signTransaction,
+              signTxType: typeof signTx,
+              address: walletState.address,
+              networkPassphrase: network.networkPassphrase,
+            });
 
-          // Send the signed transaction
-          const result = await assembledTx.signAndSend(signResult.signedTxXdr);
-          return result.hash;
+            if (!signTx) {
+              throw new Error("signTransaction method is not available");
+            }
+
+            // Sign the transaction - this will trigger the wallet popup
+            console.log(
+              "Calling signTransaction now - wallet popup should appear..."
+            );
+            const signResult = await signTx(xdr, {
+              address: walletState.address,
+              networkPassphrase: network.networkPassphrase,
+            });
+
+            console.log("Sign result received:", signResult);
+
+            if (!signResult || !signResult.signedTxXdr) {
+              throw new Error(
+                "Transaction signing failed - no signed transaction received"
+              );
+            }
+
+            // Parse the signed XDR back into a Transaction object
+            console.log("Parsing signed XDR to Transaction object...");
+            const signedTransaction = TransactionBuilder.fromXDR(
+              signResult.signedTxXdr,
+              network.networkPassphrase
+            );
+
+            // Send the signed transaction via RPC
+            console.log("Sending signed transaction via RPC...");
+            const server = createRpcServer();
+            const sendResponse =
+              await server.sendTransaction(signedTransaction);
+
+            console.log("Transaction sent successfully:", sendResponse);
+
+            if (sendResponse.errorResult) {
+              throw new Error(
+                `Transaction failed: ${sendResponse.errorResult.value()}`
+              );
+            }
+
+            if (sendResponse.status === "ERROR") {
+              throw new Error(
+                `Transaction error: ${JSON.stringify(sendResponse)}`
+              );
+            }
+
+            // Extract transaction hash from response
+            const txHash = sendResponse.hash || sendResponse.id || "";
+            console.log("Transaction hash:", txHash);
+            return txHash;
+          } catch (signError: any) {
+            console.error("Error during transaction signing:", signError);
+            if (
+              signError.message?.includes("User rejected") ||
+              signError.message?.includes("rejected")
+            ) {
+              throw new Error("Transaction was rejected by user");
+            }
+            throw signError;
+          }
         } catch (error: any) {
           console.error(`Error sending ${method}:`, error);
           throw error;

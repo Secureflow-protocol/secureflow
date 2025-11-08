@@ -39,9 +39,9 @@ export function ProjectDetailsStep({
       <CardHeader>
         <CardTitle>Project Details</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-8">
         {isContractPaused && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="mb-6">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               Contract is currently paused. Escrow creation is temporarily
@@ -50,9 +50,11 @@ export function ProjectDetailsStep({
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <Label htmlFor="projectTitle">Project Title *</Label>
+            <Label htmlFor="projectTitle" className="mb-2 block">
+              Project Title *
+            </Label>
             <Input
               id="projectTitle"
               value={formData.projectTitle}
@@ -70,7 +72,9 @@ export function ProjectDetailsStep({
           </div>
 
           <div>
-            <Label htmlFor="duration">Duration (days) *</Label>
+            <Label htmlFor="duration" className="mb-2 block">
+              Duration (days) *
+            </Label>
             <Input
               id="duration"
               type="number"
@@ -91,7 +95,9 @@ export function ProjectDetailsStep({
         </div>
 
         <div>
-          <Label htmlFor="projectDescription">Project Description *</Label>
+          <Label htmlFor="projectDescription" className="mb-2 block">
+            Project Description *
+          </Label>
           <Textarea
             id="projectDescription"
             value={formData.projectDescription}
@@ -116,9 +122,11 @@ export function ProjectDetailsStep({
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <Label htmlFor="totalBudget">Total Budget (tokens) *</Label>
+            <Label htmlFor="totalBudget" className="mb-2 block">
+              Total Budget (tokens) *
+            </Label>
             <Input
               id="totalBudget"
               type="number"
@@ -142,17 +150,17 @@ export function ProjectDetailsStep({
           </div>
 
           <div>
-            <Label htmlFor="beneficiary">
+            <Label htmlFor="beneficiary" className="mb-2 block">
               Beneficiary Address {!formData.isOpenJob && "*"}
             </Label>
             <Input
               id="beneficiary"
               value={formData.beneficiary}
               onChange={(e) => onUpdate({ beneficiary: e.target.value })}
-              placeholder="0x..."
+              placeholder="G..."
               disabled={formData.isOpenJob}
               required={!formData.isOpenJob}
-              pattern="^0x[a-fA-F0-9]{40}$"
+              pattern="^G[A-Z0-9]{55}$"
               className={
                 errors.beneficiary ? "border-red-500 focus:border-red-500" : ""
               }
@@ -163,34 +171,38 @@ export function ProjectDetailsStep({
               <p className="text-xs text-muted-foreground mt-1">
                 {formData.isOpenJob
                   ? "Leave empty for open job applications"
-                  : "Valid Ethereum address required for direct escrow"}
+                  : "Valid Stellar address required for direct escrow"}
               </p>
             )}
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="flex items-center space-x-2">
+        <div className="space-y-6 mt-4">
+          <div className="flex items-center space-x-3">
             <input
               type="checkbox"
               id="useNativeToken"
               checked={formData.useNativeToken}
               onChange={(e) => onUpdate({ useNativeToken: e.target.checked })}
-              className="rounded"
+              className="rounded w-4 h-4"
             />
-            <Label htmlFor="useNativeToken">Use Native Token (ETH)</Label>
+            <Label htmlFor="useNativeToken" className="cursor-pointer">
+              Use Native Token (XLM)
+            </Label>
           </div>
 
           {!formData.useNativeToken && (
             <div>
-              <Label htmlFor="tokenAddress">Token Address *</Label>
+              <Label htmlFor="tokenAddress" className="mb-2 block">
+                Token Address *
+              </Label>
               <Input
                 id="tokenAddress"
                 value={formData.token}
                 onChange={(e) => onUpdate({ token: e.target.value })}
-                placeholder="0x..."
+                placeholder="C..."
                 required={!formData.useNativeToken}
-                pattern="^0x[a-fA-F0-9]{40}$"
+                pattern="^C[A-Z0-9]{55}$"
                 className={
                   errors.tokenAddress
                     ? "border-red-500 focus:border-red-500"
@@ -203,22 +215,24 @@ export function ProjectDetailsStep({
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Enter the contract address of your ERC20 token deployed on
+                  Enter the contract address of your Soroban token deployed on
                   Stellar Testnet. Default: Native XLM token
                 </p>
               )}
             </div>
           )}
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             <input
               type="checkbox"
               id="isOpenJob"
               checked={formData.isOpenJob}
               onChange={(e) => onUpdate({ isOpenJob: e.target.checked })}
-              className="rounded"
+              className="rounded w-4 h-4"
             />
-            <Label htmlFor="isOpenJob">Open Job (Allow Applications)</Label>
+            <Label htmlFor="isOpenJob" className="cursor-pointer">
+              Open Job (Allow Applications)
+            </Label>
           </div>
         </div>
       </CardContent>
