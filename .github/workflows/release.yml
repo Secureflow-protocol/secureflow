@@ -1,0 +1,18 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*" # triggered whenever a new tag (prefixed with "v") is pushed to the repository
+
+jobs:
+  release-contract:
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+    with:
+      release_name: ${{ github.ref_name }} # use git tag as unique release name
+      release_description: "SecureFlow Contract Release" # release description
+      relative_path: '["contracts/secureflow"]' # relative path to the secureflow contract
+      package: "secureflow" # package name to build
+    secrets: # the authentication token will be automatically created by GitHub
+      release_token: ${{ secrets.GITHUB_TOKEN }} # don't modify this line
+
