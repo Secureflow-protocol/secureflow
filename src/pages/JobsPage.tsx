@@ -177,6 +177,26 @@ export default function JobsPage() {
     try {
       // Fetch all data from blockchain via contractService.getEscrow()
       // This ensures all displayed data is from the blockchain, not mock data
+
+      // Get current ledger sequence once (needed for timestamp conversion)
+      let currentLedger = 0;
+      try {
+        const { rpc } = await import("@stellar/stellar-sdk");
+        const { getCurrentNetwork } = await import("@/lib/web3/stellar-config");
+        const network = getCurrentNetwork();
+        const rpcServer = new rpc.Server(network.rpcUrl);
+        const latestLedger = await rpcServer.getLatestLedger();
+        currentLedger = latestLedger.sequence;
+      } catch (error) {
+        console.warn(
+          "Could not fetch current ledger, using approximate timestamp:",
+          error
+        );
+        // Fallback: use current time as approximation
+        const SECONDS_PER_LEDGER = 5;
+        currentLedger = Math.floor(Date.now() / 1000 / SECONDS_PER_LEDGER);
+      }
+
       // Get total number of escrows using contract service
       // NO TIMEOUT - let it complete fully to get accurate count from blockchain
       const escrowCount = await contractService.getNextEscrowId();
@@ -231,6 +251,22 @@ export default function JobsPage() {
               let userHasApplied = false;
               let applicationCount = 0;
 
+              // IMPORTANT: created_at and deadline are LEDGER SEQUENCE NUMBERS, not timestamps!
+              // Stellar ledgers close approximately every 5 seconds
+              // Duration = (deadline - created_at) * 5 seconds
+              const SECONDS_PER_LEDGER = 5;
+              const ledgerDiff = escrowData.deadline - escrowData.created_at;
+              const durationInSeconds = ledgerDiff * SECONDS_PER_LEDGER;
+              const durationInDays = Math.max(
+                0,
+                Math.round(durationInSeconds / (24 * 60 * 60))
+              );
+
+              // Calculate approximate timestamp: current time - (current_ledger - created_at) * 5 seconds
+              const ledgersAgo = currentLedger - escrowData.created_at;
+              const secondsAgo = ledgersAgo * SECONDS_PER_LEDGER;
+              const approxCreatedAt = Date.now() - secondsAgo * 1000;
+
               // Convert contract data to our Escrow type
               // All data is from blockchain - fetched via contractService.getEscrow()
               const job: Escrow = {
@@ -241,14 +277,8 @@ export default function JobsPage() {
                 totalAmount: escrowData.amount, // totalAmount (from blockchain)
                 releasedAmount: "0", // paidAmount - would need to calculate from milestones
                 status: getStatusFromNumber(escrowData.status), // status (from blockchain)
-                createdAt: escrowData.created_at * 1000, // createdAt (from blockchain, convert to milliseconds)
-                duration: Math.max(
-                  0,
-                  Math.round(
-                    (escrowData.deadline - escrowData.created_at) /
-                      (24 * 60 * 60)
-                  )
-                ), // Convert seconds to days (from blockchain)
+                createdAt: approxCreatedAt, // Approximate timestamp from ledger sequence
+                duration: durationInDays, // Duration in days (calculated correctly from ledger sequence)
                 milestones: [], // Would need to fetch milestones separately
                 projectTitle: escrowData.project_title || "", // projectTitle (from blockchain)
                 projectDescription: escrowData.project_description || "", // projectDescription (from blockchain)
