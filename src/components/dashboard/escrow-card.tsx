@@ -242,8 +242,8 @@ export function EscrowCard({
                             await new Promise((resolve) =>
                               setTimeout(resolve, 2000)
                             );
-                            // Reload the page to ensure UI is fully updated
-                            window.location.reload();
+                            // Trigger refresh without reloading the page
+                            // The parent component should listen to the event and refresh
                           }}
                         />
                       </div>

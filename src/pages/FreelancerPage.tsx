@@ -116,6 +116,25 @@ export default function FreelancerPage() {
     }
   }, [wallet.isConnected]);
 
+  // Listen for escrow update events from milestone approvals
+  useEffect(() => {
+    const handleEscrowUpdated = async () => {
+      // Wait a moment for blockchain state to update
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Refresh the escrow data without reloading the page
+      fetchFreelancerEscrows();
+    };
+
+    window.addEventListener("escrowUpdated", handleEscrowUpdated);
+    window.addEventListener("milestoneApproved", handleEscrowUpdated);
+
+    return () => {
+      window.removeEventListener("escrowUpdated", handleEscrowUpdated);
+      window.removeEventListener("milestoneApproved", handleEscrowUpdated);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Listen for milestone submission events
   useEffect(() => {
     const handleMilestoneSubmitted = () => {
@@ -190,11 +209,11 @@ export default function FreelancerPage() {
 
           if (!escrowData) {
             console.log(`[FreelancerPage] Escrow ${i} does not exist`);
-              continue;
-            }
+            continue;
+          }
 
-            // Check if current user is the beneficiary
-            const isBeneficiary =
+          // Check if current user is the beneficiary
+          const isBeneficiary =
             escrowData.freelancer &&
             escrowData.freelancer.toLowerCase().trim() ===
               wallet.address.toLowerCase().trim();
@@ -220,8 +239,67 @@ export default function FreelancerPage() {
             const milestonesData = await contractService.getMilestones(i);
             const allMilestones = milestonesData.map(
               (m: any, index: number) => {
-                // Convert milestone status number to string
-                const statusNumber = m.status || 0;
+                // Convert milestone status to number first (might be string enum or number)
+                let statusNumber = 0;
+                const rawStatus = m.status || m[2] || 0;
+
+                if (typeof rawStatus === "string") {
+                  // Status is an enum string like "NotStarted", "Submitted", "Approved", etc.
+                  switch (rawStatus.toLowerCase()) {
+                    case "notstarted":
+                    case "pending":
+                      statusNumber = 0;
+                      break;
+                    case "submitted":
+                      statusNumber = 1;
+                      break;
+                    case "approved":
+                      statusNumber = 2;
+                      break;
+                    case "disputed":
+                      statusNumber = 3;
+                      break;
+                    case "resolved":
+                      statusNumber = 4;
+                      break;
+                    case "rejected":
+                      statusNumber = 5;
+                      break;
+                    default:
+                      statusNumber = 0;
+                  }
+                } else if (typeof rawStatus === "number") {
+                  statusNumber = rawStatus;
+                } else if (Array.isArray(rawStatus) && rawStatus.length > 0) {
+                  // Status might be an enum array
+                  const statusStr = rawStatus[0];
+                  if (typeof statusStr === "string") {
+                    switch (statusStr.toLowerCase()) {
+                      case "notstarted":
+                      case "pending":
+                        statusNumber = 0;
+                        break;
+                      case "submitted":
+                        statusNumber = 1;
+                        break;
+                      case "approved":
+                        statusNumber = 2;
+                        break;
+                      case "disputed":
+                        statusNumber = 3;
+                        break;
+                      case "resolved":
+                        statusNumber = 4;
+                        break;
+                      case "rejected":
+                        statusNumber = 5;
+                        break;
+                    }
+                  } else if (typeof statusStr === "number") {
+                    statusNumber = statusStr;
+                  }
+                }
+
                 const statusMap: Record<
                   number,
                   | "pending"
@@ -239,6 +317,10 @@ export default function FreelancerPage() {
                   5: "rejected",
                 };
                 const status = statusMap[statusNumber] || "pending";
+
+                console.log(
+                  `[FreelancerPage] Milestone ${i}-${index} status: ${rawStatus} (${typeof rawStatus}) -> ${statusNumber} -> ${status}`
+                );
 
                 // Convert ledger sequences to timestamps
                 const submittedAtLedger = m.submitted_at || 0;
@@ -258,24 +340,24 @@ export default function FreelancerPage() {
                         1000
                     : undefined;
 
-                    // Track milestone states for submission prevention
-                    const milestoneKey = `${i}-${index}`;
+                // Track milestone states for submission prevention
+                const milestoneKey = `${i}-${index}`;
                 if (status === "approved") {
-                      setApprovedMilestones(
-                        (prev) => new Set([...prev, milestoneKey])
-                      );
+                  setApprovedMilestones(
+                    (prev) => new Set([...prev, milestoneKey])
+                  );
                 } else if (status === "submitted") {
-                      setSubmittedMilestones(
-                        (prev) => new Set([...prev, milestoneKey])
-                      );
-                    }
+                  setSubmittedMilestones(
+                    (prev) => new Set([...prev, milestoneKey])
+                  );
+                }
 
-                    return {
+                return {
                   description: m.description || "",
                   amount: m.amount?.toString() || "0",
                   status,
-                      submittedAt,
-                      approvedAt,
+                  submittedAt,
+                  approvedAt,
                   disputeReason: m.dispute_reason || undefined,
                   rejectionReason: undefined,
                 };
@@ -295,7 +377,7 @@ export default function FreelancerPage() {
               beneficiary: escrowData.freelancer || "",
               token: escrowData.token || "native",
               totalAmount: escrowData.amount || "0",
-              releasedAmount: "0", // TODO: Get from escrow if available
+              releasedAmount: escrowData.paid_amount || "0", // Get paid_amount from escrow
               status: statusString,
               createdAt: approxCreatedAt, // Approximate timestamp from ledger sequence
               duration: durationInSeconds, // Duration in seconds
@@ -304,16 +386,16 @@ export default function FreelancerPage() {
               projectDescription: escrowData.project_description || "",
               isOpenJob: false, // Not an open job if freelancer is assigned
               milestoneCount: allMilestones.length,
-              };
+            };
 
-              freelancerEscrows.push(escrow);
+            freelancerEscrows.push(escrow);
             console.log(
               `[FreelancerPage] Added escrow ${i} to freelancer escrows`
             );
-            }
-          } catch (error) {
+          }
+        } catch (error) {
           console.error(`[FreelancerPage] Error checking escrow ${i}:`, error);
-            continue;
+          continue;
         }
       }
 

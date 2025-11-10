@@ -113,6 +113,25 @@ export default function DashboardPage() {
     }
   }, [wallet.isConnected]);
 
+  // Listen for escrow update events from MilestoneActions
+  useEffect(() => {
+    const handleEscrowUpdated = async () => {
+      // Wait a moment for blockchain state to update
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Refresh the escrow data without reloading the page
+      fetchUserEscrows();
+    };
+
+    window.addEventListener("escrowUpdated", handleEscrowUpdated);
+    window.addEventListener("milestoneApproved", handleEscrowUpdated);
+
+    return () => {
+      window.removeEventListener("escrowUpdated", handleEscrowUpdated);
+      window.removeEventListener("milestoneApproved", handleEscrowUpdated);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchUserEscrows = async () => {
     setLoading(true);
     try {
@@ -329,7 +348,7 @@ export default function DashboardPage() {
               isFreelancer: isBeneficiary ? true : undefined, // Track if current user is the freelancer (beneficiary)
               token: escrowData.token || "native",
               totalAmount: escrowData.amount || "0",
-              releasedAmount: "0", // TODO: Get from escrow if available
+              releasedAmount: escrowData.paid_amount || "0", // Get paid_amount from escrow
               status: getStatusFromNumber(escrowData.status || 0) as
                 | "pending"
                 | "active"
@@ -661,15 +680,14 @@ export default function DashboardPage() {
       // Check if milestone amount is being parsed correctly
       // const milestoneAmountInTokens = Number.parseFloat(milestone.amount) / 1e7; // Unused
 
+      // Wait a moment for blockchain state to update
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Refresh the escrow data without reloading the page
       await fetchUserEscrows();
 
       // Dispatch event to notify other components
       window.dispatchEvent(new CustomEvent("milestoneApproved"));
-
-      // Reload the page to ensure UI is fully updated
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
     } catch (error: any) {
       toast({
         title: "Approval Failed",
@@ -725,12 +743,12 @@ export default function DashboardPage() {
         title: "Milestone Rejected",
         description: "The freelancer has been notified and can resubmit",
       });
-      await fetchUserEscrows();
 
-      // Reload the page to ensure UI is fully updated
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      // Wait a moment for blockchain state to update
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Refresh the escrow data without reloading the page
+      await fetchUserEscrows();
     } catch (error: any) {
       toast({
         title: "Rejection Failed",

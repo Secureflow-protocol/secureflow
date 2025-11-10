@@ -26,6 +26,7 @@ export interface EscrowData {
   status: number;
   token?: string;
   amount: string;
+  paid_amount?: string;
   deadline: number;
   created_at: number;
   milestones?: any[];
@@ -476,6 +477,7 @@ export class ContractService {
       const status = getValue(getField("status"));
       const token = getValue(getField("token"));
       const totalAmount = getI128Value(getField("total_amount"));
+      const paidAmount = getI128Value(getField("paid_amount"));
       const deadline = getU32Value(getField("deadline"));
       const createdAt = getU32Value(getField("created_at"));
       const projectTitle = getValue(getField("project_title"));
@@ -599,6 +601,7 @@ export class ContractService {
         status: statusNumber,
         token: token || undefined,
         amount: totalAmount || "0", // Already a string from getI128Value
+        paid_amount: paidAmount || "0", // Already a string from getI128Value
         deadline: deadline || 0,
         created_at: createdAt || 0,
         milestones: [],
