@@ -1899,17 +1899,140 @@ export class ContractService {
       throw new Error("Beneficiary address is required");
     }
 
-    const walletAddress = beneficiary;
-
     console.log("[startWork] Using beneficiary address:", beneficiary);
 
     try {
-      const assembledTx = await this.client.start_work({
-        escrow_id: escrowId,
-        beneficiary,
+      // Build transaction manually with beneficiary as source account
+      // This ensures the simulation detects auth requirements
+      const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } =
+        await import("@stellar/stellar-sdk");
+      const { signTransaction, signAuthEntries } = await import(
+        "./wallet-signer"
+      );
+
+      const contract = new Contract(this.contractId);
+      const sourceAccount = await this.rpcServer.getAccount(beneficiary);
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          contract.call(
+            "start_work",
+            nativeToScVal(escrowId, { type: "u32" }),
+            nativeToScVal(beneficiary, { type: "address" })
+          )
+        )
+        .setTimeout(30)
+        .build();
+
+      console.log("[startWork] Transaction built, simulating...");
+
+      const simulation = await this.rpcServer.simulateTransaction(tx);
+
+      const authEntries =
+        "auth" in simulation && simulation.auth
+          ? Array.isArray(simulation.auth)
+            ? simulation.auth
+            : []
+          : [];
+
+      console.log("[startWork] Simulation complete", {
+        hasAuthEntries: authEntries.length > 0,
+        authEntriesCount: authEntries.length,
       });
 
-      return await this.sendTransactionWithAuth(assembledTx, walletAddress);
+      if ("errorResult" in simulation && simulation.errorResult) {
+        const errorValue =
+          (simulation.errorResult as any).value?.() || simulation.errorResult;
+        console.error("[startWork] Simulation failed:", errorValue);
+        throw new Error(
+          `Transaction simulation failed: ${errorValue.toString()}`
+        );
+      }
+
+      const prepared = await this.rpcServer.prepareTransaction(tx);
+
+      let signedTxXdr: string;
+
+      if (authEntries && authEntries.length > 0) {
+        console.log("[startWork] Signing auth entries", {
+          authSignerAddress: beneficiary,
+          authEntriesCount: authEntries.length,
+        });
+        const signedAuthEntries = await signAuthEntries(
+          authEntries as any[],
+          beneficiary
+        );
+        console.log("[startWork] Auth entries signed", {
+          signedCount: signedAuthEntries.length,
+        });
+
+        const parsedSignedAuth = signedAuthEntries.map((signed: string) =>
+          xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64")
+        );
+
+        const operations = prepared.operations;
+        if (operations && operations.length > 0) {
+          const op = operations[0];
+          if (op.type === "invokeHostFunction") {
+            const invokeOp = op as any;
+            const hostFn = invokeOp.function || invokeOp.hostFunction;
+            const newOp = Operation.invokeHostFunction({
+              function: hostFn as xdr.HostFunction,
+              auth: parsedSignedAuth,
+            } as any);
+
+            const freshAccount = await this.rpcServer.getAccount(beneficiary);
+            const newTx = new TransactionBuilder(freshAccount, {
+              fee: prepared.fee,
+              networkPassphrase: this.network.networkPassphrase,
+            })
+              .addOperation(newOp)
+              .setTimeout(30)
+              .build();
+
+            const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            signedTxXdr = await signTransaction({
+              unsignedTransaction: newPrepared.toXDR(),
+              address: beneficiary,
+            });
+          } else {
+            throw new Error("Expected invokeHostFunction operation");
+          }
+        } else {
+          throw new Error("No operations found in prepared transaction");
+        }
+      } else {
+        console.log("[startWork] No auth entries, signing normally", {
+          signerAddress: beneficiary,
+        });
+        signedTxXdr = await signTransaction({
+          unsignedTransaction: prepared.toXDR(),
+          address: beneficiary,
+        });
+      }
+
+      console.log("[startWork] Transaction signed, sending...");
+
+      const signedTransaction = TransactionBuilder.fromXDR(
+        signedTxXdr,
+        this.network.networkPassphrase
+      );
+
+      const sendResponse =
+        await this.rpcServer.sendTransaction(signedTransaction);
+
+      if (sendResponse.status === "ERROR") {
+        throw new Error("Transaction failed");
+      }
+
+      if (sendResponse.status === "PENDING" && sendResponse.hash) {
+        return await this.waitForConfirmation(sendResponse.hash);
+      }
+
+      return sendResponse.hash || "";
     } catch (error: any) {
       console.error("Error starting work:", error);
       throw error;
