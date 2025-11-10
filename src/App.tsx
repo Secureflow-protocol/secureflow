@@ -7,7 +7,6 @@ import DashboardPage from "./pages/DashboardPage";
 import FreelancerPage from "./pages/FreelancerPage";
 import AdminPage from "./pages/AdminPage";
 import ApprovalsPage from "./pages/ApprovalsPage";
-import SmartAccountDemoPage from "./pages/SmartAccountDemoPage";
 import Debugger from "./pages/Debugger";
 
 const AppLayout = () => (
@@ -30,7 +29,6 @@ function App() {
         <Route path="/freelancer" element={<FreelancerPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/approvals" element={<ApprovalsPage />} />
-        <Route path="/smart-account-demo" element={<SmartAccountDemoPage />} />
         <Route path="/debug" element={<Debugger />} />
         <Route path="/debug/:contractName" element={<Debugger />} />
       </Route>
