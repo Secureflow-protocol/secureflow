@@ -301,10 +301,10 @@ export default function JobsPage() {
 
               openJobs.push(job);
 
-              // Store application status
+              // Store application status - preserve existing state if already applied
               setHasApplied((prev) => ({
                 ...prev,
-                [job.id]: userHasApplied,
+                [job.id]: prev[job.id] || userHasApplied, // Preserve existing state
               }));
             }
           } catch (error) {
@@ -461,6 +461,12 @@ export default function JobsPage() {
         freelancer: wallet.address || "",
       });
 
+      // Update hasApplied state to prevent double application
+      setHasApplied((prev) => ({
+        ...prev,
+        [job.id]: true,
+      }));
+
       toast({
         title: "Application Submitted!",
         description:
@@ -485,13 +491,8 @@ export default function JobsPage() {
       // coverLetter and proposedTimeline are handled in the dialog component
       setSelectedJob(null);
 
-      // Update the application status for this specific job
-      setHasApplied((prev) => ({
-        ...prev,
-        [job.id]: true,
-      }));
-
       // Refresh the jobs list to update application counts
+      // Note: hasApplied state is already set above, so it won't be reset by fetchOpenJobs
       await fetchOpenJobs();
 
       // Refresh the ongoing projects count

@@ -17,6 +17,7 @@ import {
   scValToNative,
   TransactionBuilder,
   Operation,
+  xdr,
 } from "@stellar/stellar-sdk";
 import {
   wallet,
@@ -620,30 +621,156 @@ export function Web3Provider({ children }: { children: ReactNode }) {
           } else if (method === "approve_milestone" && args[0]) {
             assembledTx = await client.approve_milestone(args[0]);
           } else if (method === "apply_to_job" && args[0]) {
-            // Ensure freelancer address is provided
-            // The contract requires auth from the freelancer address
+            // Build transaction manually like create_escrow to ensure proper address conversion
             const freelancerAddress =
               args[0].freelancer || walletState.address || "";
 
-            // The generated client expects a string, but we need to ensure it's a valid address
-            // The client should handle the conversion to Address ScVal automatically
-            const applyArgs = {
-              escrow_id: args[0].escrow_id,
-              cover_letter: args[0].cover_letter,
-              proposed_timeline: args[0].proposed_timeline,
-              freelancer: freelancerAddress, // Pass as string - client will convert to Address ScVal
-            };
-            console.log("Calling apply_to_job with args:", applyArgs);
+            if (!freelancerAddress) {
+              throw new Error("Freelancer address is required");
+            }
 
-            // Get fresh account to ensure correct sequence number
-            // This prevents txBadSeq errors
+            console.log(
+              "Building apply_to_job transaction manually with args:",
+              {
+                escrow_id: args[0].escrow_id,
+                cover_letter: args[0].cover_letter,
+                proposed_timeline: args[0].proposed_timeline,
+                freelancer: freelancerAddress,
+              }
+            );
+
+            const contract = new Contract(contractId);
             const server = createRpcServer();
-            await server.getAccount(walletState.address!);
+            const sourceAccount = await server.getAccount(walletState.address!);
 
-            // Build the transaction with the client
-            // The client should handle sequence numbers correctly
-            // We fetch fresh account before building to ensure RPC cache is updated
-            assembledTx = await client.apply_to_job(applyArgs);
+            // Convert parameters to ScVal format - CRITICAL: convert address properly
+            const escrowIdScVal = nativeToScVal(args[0].escrow_id, {
+              type: "u32",
+            });
+            const coverLetterScVal = nativeToScVal(args[0].cover_letter, {
+              type: "string",
+            });
+            const proposedTimelineScVal = nativeToScVal(
+              args[0].proposed_timeline,
+              { type: "u32" }
+            );
+            const freelancerScVal = nativeToScVal(freelancerAddress, {
+              type: "address",
+            });
+
+            // Build transaction
+            const tx = new TransactionBuilder(sourceAccount, {
+              fee: "100",
+              networkPassphrase: network.networkPassphrase,
+            })
+              .addOperation(
+                contract.call(
+                  "apply_to_job",
+                  escrowIdScVal,
+                  coverLetterScVal,
+                  proposedTimelineScVal,
+                  freelancerScVal
+                )
+              )
+              .setTimeout(30)
+              .build();
+
+            // Simulate to check for errors and get auth entries
+            const simulation = await server.simulateTransaction(tx);
+
+            // Check for auth entries
+            const authEntries =
+              "auth" in simulation &&
+              simulation.auth &&
+              Array.isArray(simulation.auth)
+                ? simulation.auth
+                : [];
+
+            // Check if simulation failed
+            if ("errorResult" in simulation && simulation.errorResult) {
+              const errorValue =
+                (simulation.errorResult as any).value?.() ||
+                simulation.errorResult;
+              throw new Error(
+                `Transaction simulation failed: ${errorValue.toString()}`
+              );
+            }
+
+            // Prepare transaction
+            const prepared = await server.prepareTransaction(tx);
+
+            // Handle auth entries if needed
+            if (authEntries.length > 0) {
+              console.log("Auth entries found, signing auth entries...");
+              const { signAuthEntry } = await import("@stellar/freighter-api");
+
+              const signedAuthEntries = await Promise.all(
+                authEntries.map(async (entry: any) => {
+                  const entryXdr = entry.toXDR("base64");
+                  const signed = await signAuthEntry(entryXdr, {
+                    networkPassphrase: network.networkPassphrase,
+                    address: freelancerAddress,
+                  });
+                  return (
+                    signed.signedAuthEntry ||
+                    (signed as any).signedAuthEntryXdr ||
+                    entryXdr
+                  );
+                })
+              );
+
+              // Rebuild transaction with signed auth entries
+              const { xdr } = await import("@stellar/stellar-sdk");
+              const parsedSignedAuth = signedAuthEntries.map((signed: string) =>
+                xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64")
+              );
+
+              const operations = prepared.operations;
+              if (operations && operations.length > 0) {
+                const op = operations[0];
+                if (op.type === "invokeHostFunction") {
+                  const invokeOp = op as any;
+                  const hostFn = invokeOp.function || invokeOp.hostFunction;
+                  const newOp = Operation.invokeHostFunction({
+                    function: hostFn as xdr.HostFunction,
+                    auth: parsedSignedAuth,
+                  } as any);
+
+                  // Get fresh account for rebuilding
+                  const freshAccount = await server.getAccount(
+                    walletState.address!
+                  );
+                  const newTx = new TransactionBuilder(freshAccount, {
+                    fee: prepared.fee,
+                    networkPassphrase: network.networkPassphrase,
+                  })
+                    .addOperation(newOp)
+                    .setTimeout(30)
+                    .build();
+
+                  const newPrepared = await server.prepareTransaction(newTx);
+                  assembledTx = {
+                    toXDR: () => newPrepared.toXDR(),
+                    built: newPrepared,
+                  } as any;
+                } else {
+                  assembledTx = {
+                    toXDR: () => prepared.toXDR(),
+                    built: prepared,
+                  } as any;
+                }
+              } else {
+                assembledTx = {
+                  toXDR: () => prepared.toXDR(),
+                  built: prepared,
+                } as any;
+              }
+            } else {
+              assembledTx = {
+                toXDR: () => prepared.toXDR(),
+                built: prepared,
+              } as any;
+            }
           } else if (method === "accept_freelancer" && args[0]) {
             assembledTx = await client.accept_freelancer(args[0]);
           } else if (method === "refund_escrow" && args[0]) {
@@ -1077,12 +1204,8 @@ export function Web3Provider({ children }: { children: ReactNode }) {
 
           console.log("Assembled transaction:", assembledTx);
 
-          // Sign the transaction manually, then send via RPC
-          // The assembled transaction already has the correct sequence number from the generated client
-          const xdr = assembledTx.toXDR();
-          console.log(
-            "Transaction XDR created, requesting wallet signature..."
-          );
+          // Sign and send manually (like create_escrow)
+          console.log("Signing and sending transaction manually...");
           console.log("Wallet state:", {
             address: walletState.address,
             network: network.networkPassphrase,
@@ -1091,7 +1214,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
           try {
             // Use signTransaction from WalletProvider if available, otherwise fallback to wallet instance
             const signTx = walletSignTransaction || wallet.signTransaction;
-            console.log("About to call signTransaction...", {
+            console.log("About to sign transaction...", {
               hasWalletSignTransaction: !!walletSignTransaction,
               hasWalletSignTransactionMethod: !!wallet.signTransaction,
               signTxType: typeof signTx,
@@ -1103,9 +1226,19 @@ export function Web3Provider({ children }: { children: ReactNode }) {
               throw new Error("signTransaction method is not available");
             }
 
+            if (!walletState.address) {
+              throw new Error("Wallet address is required");
+            }
+
+            // Get the transaction XDR
+            const xdr = assembledTx.toXDR();
+            console.log(
+              "Transaction XDR created, requesting wallet signature..."
+            );
+
             // Sign the transaction - this will trigger the wallet popup
             console.log(
-              "Calling signTransaction now - wallet popup should appear..."
+              "Calling signTransaction - wallet popup should appear..."
             );
             const signResult = await signTx(xdr, {
               address: walletState.address,
@@ -1133,15 +1266,20 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             const sendResponse =
               await server.sendTransaction(signedTransaction);
 
-            console.log("Transaction sent successfully:", sendResponse);
+            console.log(
+              "Transaction sent successfully via signAndSend:",
+              sendResponse
+            );
 
-            // Wait for transaction confirmation if status is PENDING
+            // signAndSend() returns a SendTransactionResponse
+            // Check for errors in the response
             let finalResponse: any = sendResponse;
             if (sendResponse.status === "PENDING" && sendResponse.hash) {
               console.log("Transaction pending, waiting for confirmation...");
               console.log("Transaction hash:", sendResponse.hash);
 
               // Poll for transaction status
+              const server = createRpcServer();
               let attempts = 0;
               const maxAttempts = 30; // Wait up to 30 seconds
 
