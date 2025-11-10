@@ -283,6 +283,12 @@ export default function FreelancerPage() {
             );
 
             // Convert contract data to our Escrow type
+            const statusNumber = escrowData.status || 0;
+            const statusString = getStatusFromNumber(statusNumber);
+            console.log(
+              `[FreelancerPage] Escrow ${i} status: ${statusNumber} -> ${statusString}`
+            );
+
             const escrow: Escrow = {
               id: i.toString(),
               payer: escrowData.creator || "",
@@ -290,7 +296,7 @@ export default function FreelancerPage() {
               token: escrowData.token || "native",
               totalAmount: escrowData.amount || "0",
               releasedAmount: "0", // TODO: Get from escrow if available
-              status: getStatusFromNumber(escrowData.status || 0),
+              status: statusString,
               createdAt: approxCreatedAt, // Approximate timestamp from ledger sequence
               duration: durationInSeconds, // Duration in seconds
               milestones: allMilestones,
@@ -389,6 +395,9 @@ export default function FreelancerPage() {
         wallet.address || undefined // Freelancer address
       );
 
+      // Wait a moment for blockchain state to update
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       // Refresh escrows
       await fetchFreelancerEscrows();
     } catch (error: any) {
@@ -396,6 +405,36 @@ export default function FreelancerPage() {
       console.error("Error message:", error.message);
       console.error("Error code:", error.code);
       console.error("Error data:", error.data);
+
+      // Check for specific error codes
+      const errorMessage = error.message || "";
+      if (
+        errorMessage.includes("1102") ||
+        errorMessage.includes("InvalidEscrowStatus")
+      ) {
+        // Work may have already started - refresh to get latest status
+        toast({
+          title: "Work Already Started",
+          description:
+            "Work has already been started on this escrow. Refreshing...",
+        });
+        // Refresh escrows to get latest status
+        await fetchFreelancerEscrows();
+        return;
+      }
+
+      if (
+        errorMessage.includes("1103") ||
+        errorMessage.includes("WorkAlreadyStarted")
+      ) {
+        toast({
+          title: "Work Already Started",
+          description: "Work has already been started on this escrow.",
+        });
+        // Refresh escrows to get latest status
+        await fetchFreelancerEscrows();
+        return;
+      }
 
       // Check for MetaMask disconnection
       if (
@@ -417,7 +456,7 @@ export default function FreelancerPage() {
       } else {
         toast({
           title: "Failed to start work",
-          description: error.message || "Could not start work on this escrow",
+          description: errorMessage || "Could not start work on this escrow",
           variant: "destructive",
         });
       }
@@ -765,16 +804,23 @@ export default function FreelancerPage() {
     }
   };
 
-  const getStatusFromNumber = (status: number): string => {
-    const statuses = [
-      "Pending",
-      "InProgress",
-      "Released",
-      "Refunded",
-      "Disputed",
-      "Expired",
-    ];
-    return statuses[status] || "Unknown";
+  const getStatusFromNumber = (
+    status: number
+  ): "pending" | "active" | "completed" | "disputed" => {
+    switch (status) {
+      case 0:
+        return "pending";
+      case 1:
+        return "active";
+      case 2:
+        return "completed";
+      case 3:
+        return "disputed";
+      case 4:
+        return "active"; // Map cancelled to active
+      default:
+        return "pending";
+    }
   };
 
   const getMilestoneStatusColor = (status: string) => {
@@ -1369,7 +1415,7 @@ export default function FreelancerPage() {
                             submittedMilestones.has(milestoneKey);
                           const canSubmit =
                             currentMilestone.status === "pending" &&
-                            escrow.status === "InProgress" &&
+                            escrow.status === "active" &&
                             !submittedMilestones.has(milestoneKey) &&
                             !approvedMilestones.has(milestoneKey);
 
@@ -1521,7 +1567,7 @@ export default function FreelancerPage() {
 
                       {/* Actions */}
                       <div className="flex gap-3">
-                        {escrow.status === "Pending" && (
+                        {escrow.status === "pending" && (
                           <Button
                             onClick={() => startWork(escrow.id)}
                             className="flex items-center gap-2"
@@ -1529,6 +1575,11 @@ export default function FreelancerPage() {
                             <Play className="h-4 w-4" />
                             Start Work
                           </Button>
+                        )}
+                        {escrow.status === "active" && (
+                          <Badge className="bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100">
+                            Work Started
+                          </Badge>
                         )}
                       </div>
                     </CardContent>

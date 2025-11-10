@@ -483,6 +483,11 @@ export class ContractService {
 
       // Convert status enum to number
       let statusNumber = 0;
+      console.log(
+        `[getEscrow] Escrow ${escrowId} raw status:`,
+        status,
+        typeof status
+      );
       if (status) {
         if (typeof status === "string") {
           // Status is an enum like "Pending", "Active", etc.
@@ -490,9 +495,11 @@ export class ContractService {
             case "pending":
               statusNumber = 0;
               break;
+            case "inprogress":
             case "active":
               statusNumber = 1;
               break;
+            case "released":
             case "completed":
               statusNumber = 2;
               break;
@@ -510,9 +517,11 @@ export class ContractService {
               case "pending":
                 statusNumber = 0;
                 break;
+              case "inprogress":
               case "active":
                 statusNumber = 1;
                 break;
+              case "released":
               case "completed":
                 statusNumber = 2;
                 break;
@@ -521,10 +530,33 @@ export class ContractService {
                 break;
             }
           }
+        } else if (
+          status &&
+          typeof status === "object" &&
+          "variant" in status
+        ) {
+          // Status is an enum object with variant field
+          const variant = (status as any).variant?.toLowerCase() || "";
+          switch (variant) {
+            case "pending":
+              statusNumber = 0;
+              break;
+            case "inprogress":
+              statusNumber = 1;
+              break;
+            case "released":
+              statusNumber = 2;
+              break;
+            default:
+              statusNumber = 0;
+          }
         } else if (typeof status === "number") {
           statusNumber = status;
         }
       }
+      console.log(
+        `[getEscrow] Escrow ${escrowId} status number: ${statusNumber}`
+      );
 
       // CRITICAL: Check if escrow actually exists
       // If the contract returns Option::None, the map will be empty or missing key fields
