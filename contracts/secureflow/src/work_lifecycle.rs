@@ -1,8 +1,8 @@
 use crate::escrow_core;
 use crate::storage_types::{
-    DataKey, EscrowStatus, MilestoneStatus, SecureFlowError, INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD,
+    DataKey, EscrowStatus, MilestoneStatus, Milestone, SecureFlowError, INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD,
 };
-use soroban_sdk::{token, Address, Env, String, Error};
+use soroban_sdk::{token, Address, Env, String, Vec, Error};
 
 #[allow(dead_code)]
 const DISPUTE_PERIOD: u32 = 604800; // 7 days in seconds
@@ -84,7 +84,7 @@ pub fn submit_milestone(
     let mut milestone: crate::storage_types::Milestone = env
         .storage()
         .instance()
-        .get(&DataKey::Milestone(escrow_id, milestone_index))
+        .get::<DataKey, crate::storage_types::Milestone>(&DataKey::Milestone(escrow_id, milestone_index))
         .ok_or_else(|| Error::from_contract_error(SecureFlowError::InvalidMilestone as u32))?;
 
     if milestone.status != MilestoneStatus::NotStarted {
@@ -129,7 +129,7 @@ pub fn approve_milestone(env: &Env, escrow_id: u32, milestone_index: u32, deposi
     let mut milestone: crate::storage_types::Milestone = env
         .storage()
         .instance()
-        .get(&DataKey::Milestone(escrow_id, milestone_index))
+        .get::<DataKey, crate::storage_types::Milestone>(&DataKey::Milestone(escrow_id, milestone_index))
         .ok_or_else(|| Error::from_contract_error(SecureFlowError::InvalidMilestone as u32))?;
 
     if milestone.status != MilestoneStatus::Submitted {
@@ -249,5 +249,39 @@ fn update_reputation(env: &Env, user: Address, points: u32) {
     env.storage()
         .instance()
         .set(&DataKey::Reputation(user), &(current_rep + points));
+}
+
+/// Get a milestone by escrow_id and milestone_index
+pub fn get_milestone(env: &Env, escrow_id: u32, milestone_index: u32) -> Option<Milestone> {
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .get::<DataKey, Milestone>(&DataKey::Milestone(escrow_id, milestone_index))
+}
+
+/// Get all milestones for an escrow
+pub fn get_milestones(env: &Env, escrow_id: u32) -> Vec<Milestone> {
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    
+    // Get escrow to know milestone count
+    if let Some(escrow) = escrow_core::get_escrow(env, escrow_id) {
+        let milestone_count = escrow.milestone_count;
+        let mut milestones = Vec::new(env);
+        
+        // Get all milestones
+        for i in 0..milestone_count {
+            if let Some(milestone) = env.storage().instance().get::<DataKey, Milestone>(&DataKey::Milestone(escrow_id, i)) {
+                milestones.push_back(milestone);
+            }
+        }
+        
+        milestones
+    } else {
+        Vec::new(env)
+    }
 }
 

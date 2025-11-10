@@ -186,5 +186,30 @@ impl SecureFlow {
     pub fn get_owner(env: Env) -> Result<Address, Error> {
         admin::get_owner(&env)
     }
+
+    /// Check if a freelancer has applied to a job
+    pub fn has_applied(env: Env, escrow_id: u32, freelancer: Address) -> bool {
+        marketplace::has_applied(&env, escrow_id, freelancer)
+    }
+
+    /// Get an application by escrow_id and freelancer
+    pub fn get_application(env: Env, escrow_id: u32, freelancer: Address) -> Option<Application> {
+        marketplace::get_application(&env, escrow_id, freelancer)
+    }
+
+    /// Get all applications for an escrow
+    pub fn get_applications(env: Env, escrow_id: u32) -> Vec<Application> {
+        marketplace::get_applications(&env, escrow_id)
+    }
+
+    /// Get a milestone by escrow_id and milestone_index
+    pub fn get_milestone(env: Env, escrow_id: u32, milestone_index: u32) -> Option<Milestone> {
+        work_lifecycle::get_milestone(&env, escrow_id, milestone_index)
+    }
+
+    /// Get all milestones for an escrow
+    pub fn get_milestones(env: Env, escrow_id: u32) -> Vec<Milestone> {
+        work_lifecycle::get_milestones(&env, escrow_id)
+    }
 }
 

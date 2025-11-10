@@ -7,7 +7,7 @@
 import {
   Contract,
   rpc,
-  // Address, // Unused
+  Address,
   nativeToScVal,
   scValToNative,
   TransactionBuilder,
@@ -530,15 +530,11 @@ export class ContractService {
       // If the contract returns Option::None, the map will be empty or missing key fields
       // The depositor field is REQUIRED - if it doesn't exist, the escrow doesn't exist
       if (!depositor || depositor === "" || depositor === "0") {
-        console.log(
-          `❌ Escrow ${escrowId} does not exist - no depositor field`
-        );
         return null;
       }
 
       // Also check if escrowDataMap is empty (contract returned None)
       if (!escrowDataMap || Object.keys(escrowDataMap).length === 0) {
-        console.log(`❌ Escrow ${escrowId} does not exist - empty map`);
         return null;
       }
 
@@ -548,7 +544,6 @@ export class ContractService {
         escrowMap._switch &&
         escrowMap._switch.name === "scvVoid"
       ) {
-        console.log(`❌ Escrow ${escrowId} does not exist - scvVoid`);
         return null;
       }
 
@@ -586,6 +581,382 @@ export class ContractService {
     }
   }
 
+  /**
+   * Check if a user has applied to a job by reading applications from storage
+   */
+  async hasUserApplied(
+    escrowId: number,
+    userAddress: string
+  ): Promise<boolean> {
+    try {
+      console.log(
+        `[hasUserApplied] Checking if ${userAddress} applied to job ${escrowId}`
+      );
+
+      // Try using the contract's has_applied function first
+      try {
+        const contract = new Contract(this.contractId);
+        const sourceAddress =
+          useWalletStore.getState().address ||
+          "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+        const sourceAccount = {
+          accountId: () => sourceAddress,
+          sequenceNumber: () => "0",
+          incrementSequenceNumber: () => {},
+        } as any;
+
+        const tx = new TransactionBuilder(sourceAccount, {
+          fee: "100",
+          networkPassphrase: this.network.networkPassphrase,
+        })
+          .addOperation(
+            contract.call(
+              "has_applied",
+              nativeToScVal(escrowId, { type: "u32" }),
+              nativeToScVal(userAddress, { type: "address" })
+            )
+          )
+          .setTimeout(30)
+          .build();
+
+        const simulation = await this.rpcServer.simulateTransaction(tx);
+
+        // Check for errors first
+        if ("errorResult" in simulation && simulation.errorResult) {
+          const errorValue =
+            (simulation.errorResult as any).value?.() || simulation.errorResult;
+          console.warn(
+            `[hasUserApplied] Contract has_applied simulation error:`,
+            errorValue
+          );
+          throw new Error(`Simulation error: ${errorValue}`);
+        }
+
+        // Check multiple possible locations for the return value
+        let returnValue: any = null;
+
+        // Check result.retval (most common location)
+        if ((simulation as any).result?.retval) {
+          returnValue = (simulation as any).result.retval;
+        }
+        // Check transactionData.result.retval
+        else if ((simulation as any).transactionData?.result?.retval) {
+          returnValue = (simulation as any).transactionData.result.retval;
+        }
+        // Check returnValue directly
+        else if ("returnValue" in simulation && simulation.returnValue) {
+          returnValue = simulation.returnValue;
+        }
+        // Check result directly
+        else if ((simulation as any).result) {
+          returnValue = (simulation as any).result;
+        }
+
+        if (returnValue) {
+          try {
+            const result = scValToNative(returnValue as xdr.ScVal);
+            console.log(
+              `[hasUserApplied] Contract has_applied result:`,
+              result
+            );
+            const hasApplied = Boolean(result);
+            console.log(
+              `[hasUserApplied] User has applied (from contract): ${hasApplied}`
+            );
+            return hasApplied;
+          } catch (e) {
+            console.warn(`[hasUserApplied] Error parsing return value:`, e);
+          }
+        } else {
+          console.warn(
+            `[hasUserApplied] No returnValue found in simulation. Available keys:`,
+            Object.keys(simulation)
+          );
+        }
+      } catch (contractError) {
+        console.error(
+          "[hasUserApplied] Contract has_applied failed, falling back to getApplications:",
+          contractError
+        );
+      }
+
+      // Fallback: Use getApplications to get all applications and check if user is in the list
+      const applications = await this.getApplications(escrowId);
+      console.log(
+        `[hasUserApplied] Found ${applications.length} applications for job ${escrowId}`
+      );
+
+      const hasApplied = applications.some(
+        (app) =>
+          app.freelancer &&
+          app.freelancer.toLowerCase().trim() ===
+            userAddress.toLowerCase().trim()
+      );
+
+      console.log(`[hasUserApplied] User has applied: ${hasApplied}`);
+      return hasApplied;
+    } catch (error) {
+      console.error(
+        "[hasUserApplied] Error checking if user has applied:",
+        error
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Get all applications for a job by reading from storage
+   */
+  async getApplications(escrowId: number): Promise<
+    Array<{
+      freelancer: string;
+      cover_letter: string;
+      proposed_timeline: number;
+      applied_at: number;
+    }>
+  > {
+    try {
+      // Try using the contract's get_applications function first
+      try {
+        const contract = new Contract(this.contractId);
+        const sourceAddress =
+          useWalletStore.getState().address ||
+          "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+        const sourceAccount = {
+          accountId: () => sourceAddress,
+          sequenceNumber: () => "0",
+          incrementSequenceNumber: () => {},
+        } as any;
+
+        const tx = new TransactionBuilder(sourceAccount, {
+          fee: "100",
+          networkPassphrase: this.network.networkPassphrase,
+        })
+          .addOperation(
+            contract.call(
+              "get_applications",
+              nativeToScVal(escrowId, { type: "u32" })
+            )
+          )
+          .setTimeout(30)
+          .build();
+
+        const simulation = await this.rpcServer.simulateTransaction(tx);
+
+        // Check for errors first
+        if ("errorResult" in simulation && simulation.errorResult) {
+          const errorValue =
+            (simulation.errorResult as any).value?.() || simulation.errorResult;
+          console.warn(
+            `[getApplications] Contract get_applications simulation error:`,
+            errorValue
+          );
+          throw new Error(`Simulation error: ${errorValue}`);
+        }
+
+        // Check multiple possible locations for the return value
+        let returnValue: any = null;
+
+        // Check result.retval (most common location)
+        if ((simulation as any).result?.retval) {
+          returnValue = (simulation as any).result.retval;
+        }
+        // Check transactionData.result.retval
+        else if ((simulation as any).transactionData?.result?.retval) {
+          returnValue = (simulation as any).transactionData.result.retval;
+        }
+        // Check returnValue directly
+        else if ("returnValue" in simulation && simulation.returnValue) {
+          returnValue = simulation.returnValue;
+        }
+        // Check result directly
+        else if ((simulation as any).result) {
+          returnValue = (simulation as any).result;
+        }
+
+        if (returnValue) {
+          try {
+            const result = scValToNative(returnValue as xdr.ScVal);
+            console.log(
+              `[getApplications] Contract get_applications result:`,
+              result
+            );
+
+            if (Array.isArray(result)) {
+              const applications = result.map((app: any) => ({
+                freelancer: String(app.freelancer || app[0] || ""),
+                cover_letter: String(
+                  app.cover_letter || app.coverLetter || app[1] || ""
+                ),
+                proposed_timeline: Number(
+                  app.proposed_timeline || app.proposedTimeline || app[2] || 0
+                ),
+                applied_at: Number(
+                  app.applied_at || app.appliedAt || app[3] || 0
+                ),
+              }));
+              console.log(
+                `[getApplications] Successfully retrieved ${applications.length} applications from contract`
+              );
+              return applications;
+            } else {
+              console.warn(
+                `[getApplications] Contract returned non-array result:`,
+                result
+              );
+            }
+          } catch (e) {
+            console.warn(`[getApplications] Error parsing return value:`, e);
+          }
+        } else {
+          console.warn(
+            `[getApplications] No returnValue found in simulation. Available keys:`,
+            Object.keys(simulation)
+          );
+        }
+      } catch (contractError) {
+        console.error(
+          "[getApplications] Contract get_applications failed, falling back to storage read:",
+          contractError
+        );
+      }
+
+      // Fallback: Read from storage directly
+      const applications: Array<{
+        freelancer: string;
+        cover_letter: string;
+        proposed_timeline: number;
+        applied_at: number;
+      }> = [];
+
+      // Applications are stored with key DataKey::Application(escrow_id, application_index)
+      // We need to check each application index until we hit a non-existent application (max 50 applications per job)
+      const maxApplications = 50;
+
+      for (let appIndex = 0; appIndex < maxApplications; appIndex++) {
+        try {
+          // Build the DataKey for this application
+          // DataKey::Application(u32, u32) - enum variant
+          // Soroban enum variants with tuple values are encoded as a vector: [symbol, ...values]
+          // Use manual vector encoding (more reliable than nativeToScVal for enum variants)
+          const applicationKey = xdr.ScVal.scvVec([
+            nativeToScVal("Application", { type: "symbol" }),
+            nativeToScVal(escrowId, { type: "u32" }),
+            nativeToScVal(appIndex, { type: "u32" }),
+          ]);
+
+          // Read from contract storage
+          // Applications are stored in INSTANCE storage
+          // Instance storage uses persistent() durability when reading via getLedgerEntries
+          const ledgerKey = xdr.LedgerKey.contractData(
+            new xdr.LedgerKeyContractData({
+              contract: Address.fromString(this.contractId).toScAddress(),
+              key: applicationKey,
+              durability: xdr.ContractDataDurability.persistent(),
+            })
+          );
+
+          const entry = await this.rpcServer.getLedgerEntries(ledgerKey);
+          console.log(
+            `[getApplications] Entry for appIndex ${appIndex}:`,
+            entry
+          );
+          console.log(
+            `[getApplications] Key XDR:`,
+            applicationKey.toXDR().toString("base64")
+          );
+
+          if (entry && entry.entries && entry.entries.length > 0) {
+            const entryData = entry.entries[0];
+            if (entryData.val) {
+              const val = entryData.val;
+              if (val && val.contractData) {
+                const valScVal = val.contractData().val();
+
+                // Convert ScVal to native
+                let applicationData: any;
+                try {
+                  applicationData = scValToNative(valScVal);
+                } catch (e) {
+                  // If conversion fails, try to extract manually
+                  if (valScVal && typeof valScVal === "object") {
+                    applicationData = valScVal;
+                  } else {
+                    continue;
+                  }
+                }
+
+                // Extract application fields
+                // Application structure: { freelancer: Address, cover_letter: String, proposed_timeline: u32, applied_at: u32 }
+                let freelancerAddress = "";
+                let coverLetter = "";
+                let proposedTimeline = 0;
+                let appliedAt = 0;
+
+                if (applicationData && typeof applicationData === "object") {
+                  // Try different ways to extract the data
+                  if (applicationData.freelancer) {
+                    freelancerAddress = String(applicationData.freelancer);
+                    coverLetter = String(
+                      applicationData.cover_letter ||
+                        applicationData.coverLetter ||
+                        ""
+                    );
+                    proposedTimeline = Number(
+                      applicationData.proposed_timeline ||
+                        applicationData.proposedTimeline ||
+                        0
+                    );
+                    appliedAt = Number(
+                      applicationData.applied_at ||
+                        applicationData.appliedAt ||
+                        0
+                    );
+                  } else if (
+                    Array.isArray(applicationData) &&
+                    applicationData.length >= 4
+                  ) {
+                    freelancerAddress = String(applicationData[0] || "");
+                    coverLetter = String(applicationData[1] || "");
+                    proposedTimeline = Number(applicationData[2] || 0);
+                    appliedAt = Number(applicationData[3] || 0);
+                  } else if (applicationData[0]) {
+                    freelancerAddress = String(applicationData[0] || "");
+                    coverLetter = String(applicationData[1] || "");
+                    proposedTimeline = Number(applicationData[2] || 0);
+                    appliedAt = Number(applicationData[3] || 0);
+                  }
+                }
+
+                if (freelancerAddress) {
+                  applications.push({
+                    freelancer: freelancerAddress,
+                    cover_letter: coverLetter,
+                    proposed_timeline: proposedTimeline,
+                    applied_at: appliedAt,
+                  });
+                }
+              }
+            }
+          } else {
+            // No more applications found, stop searching
+            break;
+          }
+        } catch (error) {
+          // Application doesn't exist at this index, stop searching
+          break;
+        }
+      }
+
+      return applications;
+    } catch (error) {
+      console.error("Error getting applications:", error);
+      return [];
+    }
+  }
+
   async getNextEscrowId(): Promise<number> {
     try {
       console.log(
@@ -616,17 +987,12 @@ export class ContractService {
             lowerBound = mid + 1; // Check higher IDs
           } else {
             // Escrow doesn't exist, check lower IDs
-            console.log(
-              `❌ Escrow ${mid} does not exist, checking lower range`
-            );
+            console.log();
             upperBound = mid - 1;
           }
         } catch (error) {
           // Error reading escrow, assume it doesn't exist
-          console.log(
-            `❌ Error reading escrow ${mid}, checking lower range:`,
-            error
-          );
+          console.log(error);
           upperBound = mid - 1;
         }
       }

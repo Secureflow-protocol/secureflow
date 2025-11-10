@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useWeb3 } from "@/contexts/web3-context";
 import { CONTRACTS } from "@/lib/web3/config";
 
-
 export function usePendingApprovals() {
   const { wallet, getContract } = useWeb3();
   const [hasPendingApprovals, setHasPendingApprovals] = useState(false);
@@ -38,7 +37,10 @@ export function usePendingApprovals() {
 
             // Check if current user is the depositor (job creator)
             const isMyJob =
-              escrowSummary[0].toLowerCase() === wallet.address?.toLowerCase();
+              wallet.address &&
+              escrowSummary[0] &&
+              escrowSummary[0].toLowerCase().trim() ===
+                wallet.address.toLowerCase().trim();
 
             if (isMyJob) {
               // Check if this is an open job (no freelancer assigned yet)
@@ -47,21 +49,20 @@ export function usePendingApprovals() {
                 "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 
               if (isOpenJob) {
-                // Check if there are applications for this job
+                // Check if there are applications for this job using contractService
                 try {
-                  const applicationCount = await contract.call(
-                    "getApplicationCount",
-                    i
+                  const { contractService } = await import(
+                    "@/lib/web3/contract-service"
                   );
-                  const appCount = Number(applicationCount);
+                  const applications = await contractService.getApplications(i);
 
-                  if (appCount > 0) {
+                  if (applications && applications.length > 0) {
                     setHasPendingApprovals(true);
                     setLoading(false);
                     return;
                   }
                 } catch (error) {
-                  // Skip if can't get application count
+                  // Skip if can't get applications
                   continue;
                 }
               }
@@ -87,8 +88,3 @@ export function usePendingApprovals() {
     refreshApprovals: checkPendingApprovals,
   };
 }
-
-
-
-
-

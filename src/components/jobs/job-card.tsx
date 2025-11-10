@@ -22,6 +22,12 @@ export function JobCard({
   ongoingProjectsCount,
   onApply,
 }: JobCardProps) {
+  console.log(
+    `[JobCard] Rendering job ${job.id}, hasApplied prop:`,
+    hasApplied,
+    typeof hasApplied
+  );
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
@@ -89,23 +95,38 @@ export function JobCard({
               }
               className="w-full lg:w-auto min-w-[140px]"
             >
-              {isContractPaused ? (
-                <>
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  Contract Paused
-                </>
-              ) : job.isJobCreator ? (
-                "Your Job"
-              ) : hasApplied ? (
-                "Applied"
-              ) : ongoingProjectsCount >= 3 ? (
-                <>
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  Project Limit (3/3)
-                </>
-              ) : (
-                "Apply Now"
-              )}
+              {(() => {
+                const buttonText = isContractPaused ? (
+                  <>
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Contract Paused
+                  </>
+                ) : job.isJobCreator ? (
+                  "Your Job"
+                ) : hasApplied ? (
+                  "Applied"
+                ) : ongoingProjectsCount >= 3 ? (
+                  <>
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Project Limit (3/3)
+                  </>
+                ) : (
+                  "Apply Now"
+                );
+                console.log(
+                  `[JobCard] Button text for job ${job.id}:`,
+                  buttonText,
+                  "hasApplied:",
+                  hasApplied,
+                  "isContractPaused:",
+                  isContractPaused,
+                  "isJobCreator:",
+                  job.isJobCreator,
+                  "ongoingProjectsCount:",
+                  ongoingProjectsCount
+                );
+                return buttonText;
+              })()}
             </Button>
           </div>
         </div>

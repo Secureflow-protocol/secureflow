@@ -1,5 +1,3 @@
-import { useNavigate } from "react-router-dom";
-
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { useWeb3 } from "@/contexts/web3-context";
@@ -29,10 +27,9 @@ interface JobWithApplications extends Escrow {
 export default function ApprovalsPage() {
   const { wallet, getContract } = useWeb3();
   const { toast } = useToast();
-  const { isJobCreator } = useJobCreatorStatus();
-  const { hasPendingApprovals, refreshApprovals } = usePendingApprovals();
+  const { isJobCreator, loading: isJobCreatorLoading } = useJobCreatorStatus();
+  const { refreshApprovals } = usePendingApprovals();
   const { addNotification } = useNotifications();
-  const navigate = useNavigate();
   const [jobs, setJobs] = useState<JobWithApplications[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<JobWithApplications | null>(
@@ -83,7 +80,10 @@ export default function ApprovalsPage() {
         try {
           const escrowSummary = await contract.call("get_escrow", i);
           const isMyJob =
-            escrowSummary[0].toLowerCase() === wallet.address?.toLowerCase();
+            wallet.address &&
+            escrowSummary[0] &&
+            escrowSummary[0].toLowerCase().trim() ===
+              wallet.address.toLowerCase().trim();
 
           if (isMyJob) {
             const isOpenJob =
@@ -94,298 +94,33 @@ export default function ApprovalsPage() {
               let applicationCount = 0;
               const applications: Application[] = [];
 
+              // Use contractService to get applications from storage
               try {
-                const rawApplicationCount = await contract.call(
-                  "getApplicationCount",
-                  i
+                const { contractService } = await import(
+                  "@/lib/web3/contract-service"
                 );
+                const apps = await contractService.getApplications(i);
+                applicationCount = apps.length;
 
-                applicationCount = Number(rawApplicationCount);
-
-                if (applicationCount > 0) {
-                  try {
-                    // Try a different approach - fetch with a smaller limit first
-                    let applicationsData;
-                    try {
-                      applicationsData = await contract.call(
-                        "getApplicationsPage",
-                        i,
-                        0,
-                        Math.min(applicationCount, 1) // Start with just 1 application
-                      );
-                    } catch (initialError) {
-                      applicationsData = await contract.call(
-                        "getApplicationsPage",
-                        i,
-                        0,
-                        applicationCount
-                      );
-                    }
-
-                    if (applicationsData && applicationsData.length > 0) {
-                      // Try to parse the real application data
-
-                      // If we got fewer applications than expected, try a different approach
-                      if (applicationsData.length < applicationCount) {
-                        // Try fetching with a higher limit
-                        try {
-                          const moreApplicationsData = await contract.call(
-                            "getApplicationsPage",
-                            i,
-                            0,
-                            applicationCount * 2 // Try with double the limit
-                          );
-
-                          if (
-                            moreApplicationsData &&
-                            moreApplicationsData.length >
-                              applicationsData.length
-                          ) {
-                            // Use the alternative data if it has more applications
-                            applicationsData = moreApplicationsData;
-                          }
-                        } catch (altError) {}
-                      }
-
-                      for (
-                        let appIndex = 0;
-                        appIndex < applicationsData.length;
-                        appIndex++
-                      ) {
-                        try {
-                          const app = applicationsData[appIndex];
-
-                          // Attempt to extract real data from Proxy objects
-                          let freelancerAddress = "";
-                          let coverLetter = "";
-                          let proposedTimeline = 0;
-                          let appliedAt = 0;
-
-                          // Try to extract real data from blockchain without accessing Proxy properties
-
-                          try {
-                            // Strategy 1: Try to get the raw data without property access
-                            // Handle BigInt serialization by converting to string first
-                            const rawData = JSON.stringify(
-                              app,
-                              (_key, value) =>
-                                typeof value === "bigint"
-                                  ? value.toString()
-                                  : value
-                            );
-
-                            // Try to parse the JSON data
-                            const parsedData = JSON.parse(rawData);
-
-                            // Extract from parsed data - handle nested arrays
-                            if (parsedData && Array.isArray(parsedData)) {
-                              // Check if it's a nested array (like [["address", "cover", "timeline", "timestamp", true]])
-                              if (
-                                parsedData.length === 1 &&
-                                Array.isArray(parsedData[0])
-                              ) {
-                                const appData = parsedData[0];
-                                if (appData.length >= 4) {
-                                  freelancerAddress = String(appData[0] || "");
-                                  coverLetter = String(appData[1] || "");
-                                  proposedTimeline = Number(appData[2]) || 0;
-                                  appliedAt = Number(appData[3]) || 0;
-                                } else {
-                                  throw new Error(
-                                    "Invalid nested array structure"
-                                  );
-                                }
-                              } else if (parsedData.length >= 4) {
-                                // Handle flat array
-                                freelancerAddress = String(parsedData[0] || "");
-                                coverLetter = String(parsedData[1] || "");
-                                proposedTimeline = Number(parsedData[2]) || 0;
-                                appliedAt = Number(parsedData[3]) || 0;
-                              } else {
-                                throw new Error("Invalid array structure");
-                              }
-                            } else {
-                              throw new Error("Invalid parsed data structure");
-                            }
-                          } catch (jsonError) {
-                            try {
-                              // Strategy 2: Try to access data using Object.values without property access
-                              const values = Object.values(app);
-
-                              if (values && values.length >= 4) {
-                                freelancerAddress = String(values[0] || "");
-                                coverLetter = String(values[1] || "");
-                                proposedTimeline = Number(values[2]) || 0;
-                                appliedAt = Number(values[3]) || 0;
-                              } else {
-                                throw new Error("Invalid values structure");
-                              }
-                            } catch (valuesError) {
-                              try {
-                                // const keys = Object.keys(app); // Unused
-
-                                // Try to access properties using the keys
-                                const safeAccess = (obj: any, key: string) => {
-                                  try {
-                                    return obj[key];
-                                  } catch (e) {
-                                    return null;
-                                  }
-                                };
-
-                                freelancerAddress = String(
-                                  safeAccess(app, "0") ||
-                                    safeAccess(app, "freelancer") ||
-                                    ""
-                                );
-                                coverLetter = String(
-                                  safeAccess(app, "1") ||
-                                    safeAccess(app, "coverLetter") ||
-                                    ""
-                                );
-                                proposedTimeline = Number(
-                                  safeAccess(app, "2") ||
-                                    safeAccess(app, "proposedTimeline") ||
-                                    0
-                                );
-                                appliedAt = Number(
-                                  safeAccess(app, "3") ||
-                                    safeAccess(app, "appliedAt") ||
-                                    0
-                                );
-
-                                if (freelancerAddress && coverLetter) {
-                                } else {
-                                  throw new Error(
-                                    "Safe property access failed"
-                                  );
-                                }
-                              } catch (safeError) {
-                                throw safeError; // Re-throw to trigger fallback
-                              }
-                            }
-
-                            // If we reach here, all methods failed, use fallback
-                            if (!freelancerAddress || !coverLetter) {
-                              // Use fallback data only if all else fails
-                              const fallbackAddresses = [
-                                "0xdd946B178f96Aa4D4b21c3d089e53303D4F9012f",
-                                "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
-                                "0x8ba1f109551bD432803012645Hac136c",
-                              ];
-
-                              freelancerAddress =
-                                fallbackAddresses[
-                                  appIndex % fallbackAddresses.length
-                                ];
-                              coverLetter = `Application ${
-                                appIndex + 1
-                              } - Real blockchain data could not be parsed due to Proxy object limitations. This is a fallback display.`;
-                              proposedTimeline = 30 + appIndex * 15;
-                              appliedAt = Date.now() - appIndex * 86400000;
-                            }
-                          }
-
-                          // Ensure we have valid data
-                          if (
-                            !freelancerAddress ||
-                            freelancerAddress === "0x" ||
-                            freelancerAddress === ""
-                          ) {
-                            freelancerAddress = `0x${Math.random()
-                              .toString(16)
-                              .substr(2, 40)}`;
-                          }
-                          if (
-                            !coverLetter ||
-                            coverLetter === "" ||
-                            coverLetter === "undefined"
-                          ) {
-                            coverLetter = `Application ${
-                              appIndex + 1
-                            } - Cover letter data not available`;
-                          }
-                          if (
-                            proposedTimeline === 0 ||
-                            isNaN(proposedTimeline)
-                          ) {
-                            proposedTimeline = 30;
-                          }
-                          if (appliedAt === 0 || isNaN(appliedAt)) {
-                            appliedAt = Date.now() - appIndex * 86400000;
-                          }
-
-                          // Check for duplicate applications from the same freelancer
-                          const existingApplication = applications.find(
-                            (existingApp) =>
-                              existingApp.freelancerAddress.toLowerCase() ===
-                              freelancerAddress.toLowerCase()
-                          );
-
-                          if (existingApplication) {
-                            continue; // Skip this duplicate application
-                          }
-
-                          const application: Application = {
-                            freelancerAddress,
-                            coverLetter,
-                            proposedTimeline,
-                            appliedAt: appliedAt * 1000, // Convert to milliseconds
-                            status: "pending" as const,
-                          };
-
-                          applications.push(application);
-                        } catch (parseError) {
-                          // Fallback to mock data if parsing fails - but continue processing other applications
-                          const fallbackApplication: Application = {
-                            freelancerAddress: `0x${Math.random()
-                              .toString(16)
-                              .substr(2, 40)}`,
-                            coverLetter: `Application ${
-                              appIndex + 1
-                            } - Failed to parse from blockchain`,
-                            proposedTimeline: 30,
-                            appliedAt: Date.now() - appIndex * 86400000,
-                            status: "pending" as const,
-                          };
-
-                          // Check for duplicate fallback applications too
-                          const existingFallback = applications.find(
-                            (existingApp) =>
-                              existingApp.freelancerAddress.toLowerCase() ===
-                              fallbackApplication.freelancerAddress.toLowerCase()
-                          );
-
-                          if (!existingFallback) {
-                            applications.push(fallbackApplication);
-                          } else {
-                          }
-                        }
-                      }
-                    }
-                  } catch (dataError) {
-                    // Fallback to mock data if fetching fails
-                    for (
-                      let appIndex = 0;
-                      appIndex < applicationCount;
-                      appIndex++
-                    ) {
-                      const mockApplication: Application = {
-                        freelancerAddress: `0x${Math.random()
-                          .toString(16)
-                          .substr(2, 40)}`,
-                        coverLetter: `Application ${
-                          appIndex + 1
-                        } - Failed to fetch from blockchain`,
-                        proposedTimeline: 30,
-                        appliedAt: Date.now() - appIndex * 86400000,
-                        status: "pending" as const,
-                      };
-                      applications.push(mockApplication);
-                    }
-                  }
+                // Convert to Application format
+                for (const app of apps) {
+                  applications.push({
+                    freelancerAddress: app.freelancer,
+                    coverLetter: app.cover_letter,
+                    proposedTimeline: app.proposed_timeline,
+                    appliedAt: app.applied_at * 1000, // Convert to milliseconds
+                    status: "pending" as const,
+                  });
                 }
+
+                console.log(
+                  `Found ${applicationCount} applications for job ${i}`
+                );
               } catch (error) {
+                console.error(
+                  `Error getting applications for job ${i}:`,
+                  error
+                );
                 applicationCount = 0;
               }
 
@@ -510,17 +245,13 @@ export default function ApprovalsPage() {
     }
   }, [wallet.isConnected, isJobCreator]);
 
-  // Redirect if no pending approvals
-  useEffect(() => {
-    if (
-      wallet.isConnected &&
-      isJobCreator &&
-      !loading &&
-      !hasPendingApprovals
-    ) {
-      navigate("/dashboard");
-    }
-  }, [wallet.isConnected, isJobCreator, loading, hasPendingApprovals]);
+  // Don't redirect - let client see the page even if no approvals yet
+  // They might want to see their jobs
+
+  // Show loading while checking job creator status
+  if (isJobCreatorLoading) {
+    return <ApprovalsLoading isConnected={wallet.isConnected} />;
+  }
 
   if (!wallet.isConnected) {
     return (

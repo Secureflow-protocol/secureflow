@@ -72,9 +72,9 @@ export default function AdminPage() {
       // Get owner from contract
       const contract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
       if (contract) {
-        const owner = await contract.owner();
+      const owner = await contract.owner();
         if (owner) {
-          setContractOwner(owner);
+      setContractOwner(owner);
         } else {
           // Fallback to env variable
           const ownerFromEnv = import.meta.env.VITE_OWNER_ADDRESS;

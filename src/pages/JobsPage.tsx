@@ -65,11 +65,13 @@ export default function JobsPage() {
   // Removed automatic refresh to prevent constant reloading
 
   // Check application status when jobs are loaded
-  useEffect(() => {
-    if (wallet.address && jobs.length > 0) {
-      checkApplicationStatus();
-    }
-  }, [wallet.address, jobs]);
+  // Don't auto-check application status - fetchOpenJobs already does this
+  // This useEffect was causing state to be reset to false
+  // useEffect(() => {
+  //   if (wallet.address && jobs.length > 0) {
+  //     checkApplicationStatus();
+  //   }
+  // }, [wallet.address, jobs]);
 
   // Removed duplicate project count refresh
 
@@ -137,20 +139,38 @@ export default function JobsPage() {
 
   const checkApplicationStatus = async () => {
     try {
-      // Skip hasUserApplied check for now as the method doesn't exist in the contract
-      // This prevents the errors in the console
-      // We'll implement this properly later when the contract method is available
+      // Check blockchain for application status for each job
+      if (!wallet.address || jobs.length === 0) return;
+
       const applicationStatus: Record<string, boolean> = {};
 
       for (const job of jobs) {
-        // For now, assume user hasn't applied to any job
-        // This will be implemented when the contract method is available
-        applicationStatus[job.id] = false;
+        try {
+          const hasAppliedResult = await contractService.hasUserApplied(
+            Number.parseInt(job.id, 10),
+            wallet.address
+          );
+          applicationStatus[job.id] = hasAppliedResult;
+          console.log(
+            `[checkApplicationStatus] Job ${job.id} hasApplied: ${hasAppliedResult}`
+          );
+        } catch (error) {
+          console.warn(
+            `[checkApplicationStatus] Error checking job ${job.id}:`,
+            error
+          );
+          // Preserve existing state if check fails
+          applicationStatus[job.id] = hasApplied[job.id] || false;
+        }
       }
 
-      setHasApplied(applicationStatus);
+      setHasApplied((prev) => ({
+        ...prev,
+        ...applicationStatus, // Merge with existing state instead of replacing
+      }));
     } catch (error) {
-      // Silently fail - this is not critical
+      console.error("[checkApplicationStatus] Error:", error);
+      // Don't reset state on error
     }
   };
 
@@ -242,14 +262,35 @@ export default function JobsPage() {
             if (isOpenJob) {
               // Check if current user is the job creator (should not be able to apply to own job)
               const isJobCreator =
-                escrowData.creator.toLowerCase() ===
-                wallet.address?.toLowerCase();
+                wallet.address &&
+                escrowData.creator &&
+                escrowData.creator.toLowerCase().trim() ===
+                  wallet.address.toLowerCase().trim();
 
               // Check if current user has already applied to this job
-              // Skip the hasUserApplied check for now as it's causing errors
-              // We'll implement this properly later when the contract method is available
-              let userHasApplied = false;
+              // First check local state (preserves state after applying)
+              let userHasApplied = hasApplied[i] || false;
               let applicationCount = 0;
+
+              // Only check blockchain if not already in local state
+              if (!userHasApplied && wallet.address) {
+                try {
+                  userHasApplied = await contractService.hasUserApplied(
+                    i,
+                    wallet.address
+                  );
+                  console.log(
+                    `User ${wallet.address} has applied to job ${i}:`,
+                    userHasApplied
+                  );
+                } catch (error) {
+                  console.warn(
+                    `Error checking if user applied to job ${i}:`,
+                    error
+                  );
+                  userHasApplied = false;
+                }
+              }
 
               // IMPORTANT: created_at and deadline are LEDGER SEQUENCE NUMBERS, not timestamps!
               // Stellar ledgers close approximately every 5 seconds
@@ -285,7 +326,7 @@ export default function JobsPage() {
                 isOpenJob: true,
                 applications: [], // Would need to fetch applications separately
                 applicationCount: applicationCount, // Add real application count
-                isJobCreator: isJobCreator, // Add flag to track if current user is the job creator (from blockchain)
+                isJobCreator: !!isJobCreator, // Add flag to track if current user is the job creator (from blockchain)
               };
 
               // Log blockchain data for debugging
@@ -301,11 +342,18 @@ export default function JobsPage() {
 
               openJobs.push(job);
 
-              // Store application status - preserve existing state if already applied
-              setHasApplied((prev) => ({
-                ...prev,
-                [job.id]: prev[job.id] || userHasApplied, // Preserve existing state
-              }));
+              // Store application status from blockchain check
+              setHasApplied((prev) => {
+                const newState = {
+                  ...prev,
+                  [job.id]: userHasApplied, // Always use blockchain result
+                };
+                console.log(
+                  `[fetchOpenJobs] Setting hasApplied[${job.id}] = ${userHasApplied}`,
+                  newState
+                );
+                return newState;
+              });
             }
           } catch (error) {
             // Skip escrows that don't exist or user doesn't have access to
@@ -375,69 +423,29 @@ export default function JobsPage() {
       const contract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
       if (!contract) return;
 
-      // Skip hasUserApplied check for now as the method doesn't exist in the contract
-      // This prevents the errors in the console
-      // We'll implement this properly later when the contract method is available
+      // Check if user has already applied to this job using contractService
+      // Always check blockchain to prevent double applications
       let userHasApplied = false;
-
-      // For now, we'll skip checking applications as the methods don't exist
-      // This will be implemented when the contract methods are available
-      /*
-      try {
-        // First try the hasUserApplied function
-        const hasUserAppliedResult = await contract.call(
-          "hasUserApplied",
-          job.id,
-          wallet.address
-        );
-
-        // Handle different return types including Proxy(Result) objects
-        if (hasUserAppliedResult && typeof hasUserAppliedResult === "object") {
-          try {
-            const resultValue =
-              hasUserAppliedResult[0] || hasUserAppliedResult.toString();
-            userHasApplied =
-              resultValue === true ||
-              resultValue === "true" ||
-              resultValue === 1 ||
-              resultValue === "1";
-          } catch (e) {
-            userHasApplied = false;
-          }
-        } else {
-          userHasApplied =
-            hasUserAppliedResult === true ||
-            hasUserAppliedResult === "true" ||
-            hasUserAppliedResult === 1;
-        }
-      } catch (checkError) {
-        userHasApplied = false;
-      }
-
-      // If hasUserApplied failed or returned false, try alternative method
-      if (!userHasApplied) {
+      if (wallet.address) {
         try {
-          const applications = await contract.call(
-            "getApplicationsPage",
-            job.id,
-            0, // offset
-            100 // limit
+          const hasAppliedResult = await contractService.hasUserApplied(
+            Number.parseInt(job.id, 10),
+            wallet.address
           );
-
-          if (applications && Array.isArray(applications)) {
-            // Check if current user is in the applications list
-            userHasApplied = applications.some((app: any) => {
-              const freelancerAddress = app.freelancer || app[0]; // Try different possible structures
-              return (
-                freelancerAddress &&
-                freelancerAddress.toLowerCase() ===
-                  wallet.address?.toLowerCase()
-              );
-            });
-          }
-        } catch (altError) {}
+          userHasApplied = hasAppliedResult;
+          console.log(
+            `[handleApply] User ${wallet.address} has applied to job ${job.id}:`,
+            hasAppliedResult
+          );
+        } catch (error) {
+          console.warn(
+            `[handleApply] Error checking if user applied to job ${job.id}:`,
+            error
+          );
+          // If check fails, use local state as fallback
+          userHasApplied = hasApplied[job.id] || false;
+        }
       }
-      */
 
       if (userHasApplied) {
         toast({
@@ -491,9 +499,9 @@ export default function JobsPage() {
       // coverLetter and proposedTimeline are handled in the dialog component
       setSelectedJob(null);
 
-      // Refresh the jobs list to update application counts
-      // Note: hasApplied state is already set above, so it won't be reset by fetchOpenJobs
-      await fetchOpenJobs();
+      // DON'T refresh jobs list immediately - it will reset hasApplied state
+      // The application is already recorded on blockchain, just update local state
+      // Only refresh if needed for other reasons
 
       // Refresh the ongoing projects count
       await countOngoingProjects();
@@ -547,17 +555,26 @@ export default function JobsPage() {
               </p>
             </Card>
           ) : (
-            filteredJobs.map((job, index) => (
-              <JobCard
-                key={job.id}
-                job={job}
-                index={index}
-                hasApplied={hasApplied[job.id] || false}
-                isContractPaused={isContractPaused}
-                ongoingProjectsCount={ongoingProjectsCount}
-                onApply={setSelectedJob}
-              />
-            ))
+            filteredJobs.map((job, index) => {
+              const jobHasApplied = hasApplied[job.id] || false;
+              console.log(
+                `[JobsPage] Rendering JobCard for job ${job.id}, hasApplied:`,
+                jobHasApplied,
+                "Full state:",
+                hasApplied
+              );
+              return (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  index={index}
+                  hasApplied={jobHasApplied}
+                  isContractPaused={isContractPaused}
+                  ongoingProjectsCount={ongoingProjectsCount}
+                  onApply={setSelectedJob}
+                />
+              );
+            })
           )}
         </div>
 

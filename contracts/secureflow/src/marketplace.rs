@@ -1,7 +1,7 @@
 use crate::admin;
 use crate::escrow_core;
 use crate::storage_types::{Application, DataKey, EscrowStatus, SecureFlowError, INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
-use soroban_sdk::{Env, Address, String, Error};
+use soroban_sdk::{Env, Address, String, Vec, Error};
 
 const MAX_APPLICATIONS: u32 = 50;
 
@@ -101,5 +101,62 @@ pub fn accept_freelancer(env: &Env, escrow_id: u32, depositor: Address, freelanc
     escrow_core::add_user_escrow(env, freelancer, escrow_id);
     
     Ok(())
+}
+
+/// Check if a freelancer has applied to a job
+pub fn has_applied(env: &Env, escrow_id: u32, freelancer: Address) -> bool {
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    
+    // Check all possible application indices (0 to MAX_APPLICATIONS - 1)
+    for app_index in 0..MAX_APPLICATIONS {
+        let key = DataKey::Application(escrow_id, app_index);
+        if let Some(application) = env.storage().instance().get::<DataKey, Application>(&key) {
+            if application.freelancer == freelancer {
+                return true;
+            }
+        }
+    }
+    
+    false
+}
+
+/// Get an application by escrow_id and freelancer
+pub fn get_application(env: &Env, escrow_id: u32, freelancer: Address) -> Option<Application> {
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    
+    // Check all possible application indices
+    for app_index in 0..MAX_APPLICATIONS {
+        let key = DataKey::Application(escrow_id, app_index);
+        if let Some(application) = env.storage().instance().get::<DataKey, Application>(&key) {
+            if application.freelancer == freelancer {
+                return Some(application);
+            }
+        }
+    }
+    
+    None
+}
+
+/// Get all applications for an escrow
+pub fn get_applications(env: &Env, escrow_id: u32) -> Vec<Application> {
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    
+    let mut applications = Vec::new(env);
+    
+    // Check all possible application indices
+    for app_index in 0..MAX_APPLICATIONS {
+        let key = DataKey::Application(escrow_id, app_index);
+        if let Some(application) = env.storage().instance().get::<DataKey, Application>(&key) {
+            applications.push_back(application);
+        }
+    }
+    
+    applications
 }
 
