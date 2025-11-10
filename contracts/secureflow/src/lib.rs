@@ -88,6 +88,28 @@ impl SecureFlow {
         work_lifecycle::approve_milestone(&env, escrow_id, milestone_index, depositor)
     }
 
+    /// Reject a milestone
+    pub fn reject_milestone(
+        env: Env,
+        escrow_id: u32,
+        milestone_index: u32,
+        reason: String,
+        depositor: Address,
+    ) -> Result<(), Error> {
+        work_lifecycle::reject_milestone(&env, escrow_id, milestone_index, reason, depositor)
+    }
+
+    /// Dispute a milestone
+    pub fn dispute_milestone(
+        env: Env,
+        escrow_id: u32,
+        milestone_index: u32,
+        reason: String,
+        disputer: Address,
+    ) -> Result<(), Error> {
+        work_lifecycle::dispute_milestone(&env, escrow_id, milestone_index, reason, disputer)
+    }
+
     /// Apply to a job
     pub fn apply_to_job(
         env: Env,

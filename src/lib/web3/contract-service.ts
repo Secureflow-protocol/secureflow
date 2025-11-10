@@ -2364,6 +2364,260 @@ export class ContractService {
     }
   }
 
+  async rejectMilestone(params: {
+    escrow_id: number;
+    milestone_index: number;
+    reason: string;
+    depositor: string;
+  }): Promise<string> {
+    if (!params.depositor) {
+      throw new Error("Depositor address is required");
+    }
+    console.log("[rejectMilestone] Using depositor address:", params.depositor);
+    try {
+      const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } =
+        await import("@stellar/stellar-sdk");
+      const { signTransaction, signAuthEntries } = await import(
+        "./wallet-signer"
+      );
+      const contract = new Contract(this.contractId);
+      const sourceAccount = await this.rpcServer.getAccount(params.depositor);
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          contract.call(
+            "reject_milestone",
+            nativeToScVal(params.escrow_id, { type: "u32" }),
+            nativeToScVal(params.milestone_index, { type: "u32" }),
+            nativeToScVal(params.reason, { type: "string" }),
+            nativeToScVal(params.depositor, { type: "address" })
+          )
+        )
+        .setTimeout(30)
+        .build();
+      console.log("[rejectMilestone] Transaction built, simulating...");
+      const simulation = await this.rpcServer.simulateTransaction(tx);
+      const authEntries =
+        "auth" in simulation && simulation.auth
+          ? Array.isArray(simulation.auth)
+            ? simulation.auth
+            : []
+          : [];
+      console.log("[rejectMilestone] Simulation complete", {
+        hasAuthEntries: authEntries.length > 0,
+        authEntriesCount: authEntries.length,
+      });
+      if ("errorResult" in simulation && simulation.errorResult) {
+        const errorValue =
+          (simulation.errorResult as any).value?.() || simulation.errorResult;
+        console.error("[rejectMilestone] Simulation failed:", errorValue);
+        throw new Error(
+          `Transaction simulation failed: ${errorValue.toString()}`
+        );
+      }
+      const prepared = await this.rpcServer.prepareTransaction(tx);
+      let signedTxXdr: string;
+      if (authEntries && authEntries.length > 0) {
+        console.log("[rejectMilestone] Signing auth entries", {
+          authSignerAddress: params.depositor,
+          authEntriesCount: authEntries.length,
+        });
+        const signedAuthEntries = await signAuthEntries(
+          authEntries as any[],
+          params.depositor
+        );
+        console.log("[rejectMilestone] Auth entries signed", {
+          signedCount: signedAuthEntries.length,
+        });
+        const parsedSignedAuth = signedAuthEntries.map((signed: string) =>
+          xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64")
+        );
+        const operations = prepared.operations;
+        if (operations && operations.length > 0) {
+          const op = operations[0];
+          if (op.type === "invokeHostFunction") {
+            const invokeOp = op as any;
+            const hostFn = invokeOp.function || invokeOp.hostFunction;
+            const newOp = Operation.invokeHostFunction({
+              function: hostFn as xdr.HostFunction,
+              auth: parsedSignedAuth,
+            } as any);
+            const freshAccount = await this.rpcServer.getAccount(
+              params.depositor
+            );
+            const newTx = new TransactionBuilder(freshAccount, {
+              fee: prepared.fee,
+              networkPassphrase: this.network.networkPassphrase,
+            })
+              .addOperation(newOp)
+              .setTimeout(30)
+              .build();
+            const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            signedTxXdr = await signTransaction({
+              unsignedTransaction: newPrepared.toXDR(),
+              address: params.depositor,
+            });
+          } else {
+            throw new Error("Expected invokeHostFunction operation");
+          }
+        } else {
+          throw new Error("No operations found in prepared transaction");
+        }
+      } else {
+        console.log("[rejectMilestone] No auth entries, signing normally", {
+          signerAddress: params.depositor,
+        });
+        signedTxXdr = await signTransaction({
+          unsignedTransaction: prepared.toXDR(),
+          address: params.depositor,
+        });
+      }
+      console.log("[rejectMilestone] Transaction signed, sending...");
+      const signedTransaction = TransactionBuilder.fromXDR(
+        signedTxXdr,
+        this.network.networkPassphrase
+      );
+      const sendResponse =
+        await this.rpcServer.sendTransaction(signedTransaction);
+      if (sendResponse.status === "ERROR") {
+        throw new Error("Transaction failed");
+      }
+      if (sendResponse.status === "PENDING" && sendResponse.hash) {
+        return await this.waitForConfirmation(sendResponse.hash);
+      }
+      return sendResponse.hash || "";
+    } catch (error: any) {
+      console.error("Error rejecting milestone:", error);
+      throw error;
+    }
+  }
+
+  async disputeMilestone(params: {
+    escrow_id: number;
+    milestone_index: number;
+    reason: string;
+    disputer: string;
+  }): Promise<string> {
+    if (!params.disputer) {
+      throw new Error("Disputer address is required");
+    }
+    console.log("[disputeMilestone] Using disputer address:", params.disputer);
+    try {
+      const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } = await import("@stellar/stellar-sdk");
+      const { signTransaction, signAuthEntries } = await import("./wallet-signer");
+      const contract = new Contract(this.contractId);
+      const sourceAccount = await this.rpcServer.getAccount(params.disputer);
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          contract.call(
+            "dispute_milestone",
+            nativeToScVal(params.escrow_id, { type: "u32" }),
+            nativeToScVal(params.milestone_index, { type: "u32" }),
+            nativeToScVal(params.reason, { type: "string" }),
+            nativeToScVal(params.disputer, { type: "address" })
+          )
+        )
+        .setTimeout(30)
+        .build();
+      console.log("[disputeMilestone] Transaction built, simulating...");
+      const simulation = await this.rpcServer.simulateTransaction(tx);
+      const authEntries =
+        "auth" in simulation && simulation.auth
+          ? Array.isArray(simulation.auth)
+            ? simulation.auth
+            : []
+          : [];
+      console.log("[disputeMilestone] Simulation complete", {
+        hasAuthEntries: authEntries.length > 0,
+        authEntriesCount: authEntries.length,
+      });
+      if ("errorResult" in simulation && simulation.errorResult) {
+        const errorValue =
+          (simulation.errorResult as any).value?.() || simulation.errorResult;
+        console.error("[disputeMilestone] Simulation failed:", errorValue);
+        throw new Error(
+          `Transaction simulation failed: ${errorValue.toString()}`
+        );
+      }
+      const prepared = await this.rpcServer.prepareTransaction(tx);
+      let signedTxXdr: string;
+      if (authEntries && authEntries.length > 0) {
+        console.log("[disputeMilestone] Signing auth entries", {
+          authSignerAddress: params.disputer,
+          authEntriesCount: authEntries.length,
+        });
+        const signedAuthEntries = await signAuthEntries(
+          authEntries as any[],
+          params.disputer
+        );
+        console.log("[disputeMilestone] Auth entries signed", {
+          signedCount: signedAuthEntries.length,
+        });
+        const parsedSignedAuth = signedAuthEntries.map((signed: string) =>
+          xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64")
+        );
+        const operations = prepared.operations;
+        if (operations && operations.length > 0) {
+          const op = operations[0];
+          if (op.type === "invokeHostFunction") {
+            const invokeOp = op as any;
+            const hostFn = invokeOp.function || invokeOp.hostFunction;
+            const newOp = Operation.invokeHostFunction({
+              function: hostFn as xdr.HostFunction,
+              auth: parsedSignedAuth,
+            } as any);
+            const freshAccount = await this.rpcServer.getAccount(params.disputer);
+            const newTx = new TransactionBuilder(freshAccount, {
+              fee: prepared.fee,
+              networkPassphrase: this.network.networkPassphrase,
+            })
+              .addOperation(newOp)
+              .setTimeout(30)
+              .build();
+            const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            signedTxXdr = await signTransaction({
+              unsignedTransaction: newPrepared.toXDR(),
+              address: params.disputer,
+            });
+          } else {
+            throw new Error("Expected invokeHostFunction operation");
+          }
+        } else {
+          throw new Error("No operations found in prepared transaction");
+        }
+      } else {
+        console.log("[disputeMilestone] No auth entries, signing normally", {
+          signerAddress: params.disputer,
+        });
+        signedTxXdr = await signTransaction({
+          unsignedTransaction: prepared.toXDR(),
+          address: params.disputer,
+        });
+      }
+      console.log("[disputeMilestone] Transaction signed, sending...");
+      const signedTransaction = TransactionBuilder.fromXDR(
+        signedTxXdr,
+        this.network.networkPassphrase
+      );
+      const sendResponse = await this.rpcServer.sendTransaction(signedTransaction);
+      if (sendResponse.status === "ERROR") {
+        throw new Error("Transaction failed");
+      }
+      if (sendResponse.status === "PENDING" && sendResponse.hash) {
+        return await this.waitForConfirmation(sendResponse.hash);
+      }
+      return sendResponse.hash || "";
+    } catch (error: any) {
+      console.error("Error disputing milestone:", error);
+      throw error;
+    }
+  }
+
   async refundEscrow(escrowId: number, depositor: string): Promise<string> {
     const { address } = useWalletStore.getState();
     if (!address) {

@@ -855,20 +855,22 @@ export default function FreelancerPage() {
 
     try {
       setSubmittingMilestone(`${escrowId}-${milestoneIndex}`);
-      const contract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
 
       toast({
         title: "Opening dispute...",
         description: "Submitting transaction to open dispute",
       });
 
-      // Stellar: Use direct contract call
-      await contract.send(
-        "dispute_milestone",
-        Number(escrowId),
-        milestoneIndex,
-        reason
-      );
+      // Use ContractService instead of contract.send
+      const { ContractService } = await import("@/lib/web3/contract-service");
+      const contractService = new ContractService(CONTRACTS.SECUREFLOW_ESCROW);
+
+      await contractService.disputeMilestone({
+        escrow_id: Number(escrowId),
+        milestone_index: milestoneIndex,
+        reason: reason,
+        disputer: wallet.address || "",
+      });
 
       toast({
         title: "Dispute Opened!",

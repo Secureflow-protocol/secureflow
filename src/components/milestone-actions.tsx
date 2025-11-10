@@ -142,20 +142,39 @@ export function MilestoneActions({
           });
           break;
         case "reject":
-          txHash = await contract.send(
-            "reject_milestone",
-            Number(escrowId),
-            milestoneIndex,
-            disputeReason
+          // Use ContractService instead of contract.send - it handles the correct format
+          const { ContractService: RejectContractService } = await import(
+            "@/lib/web3/contract-service"
           );
+          const rejectContractService = new RejectContractService(
+            CONTRACTS.SECUREFLOW_ESCROW
+          );
+          txHash = await rejectContractService.rejectMilestone({
+            escrow_id: Number(escrowId),
+            milestone_index: milestoneIndex,
+            reason: disputeReason,
+            depositor: wallet.address || "",
+          });
           break;
         case "dispute":
-          txHash = await contract.send(
-            "dispute_milestone",
-            Number(escrowId),
-            milestoneIndex,
-            disputeReason
+          // Use ContractService instead of contract.send - it handles the correct format
+          // Determine who can dispute: either payer (client) or beneficiary (freelancer)
+          const disputerAddress = wallet.address || "";
+          if (!disputerAddress) {
+            throw new Error("Wallet address is required to dispute milestone");
+          }
+          const { ContractService: DisputeContractService } = await import(
+            "@/lib/web3/contract-service"
           );
+          const disputeContractService = new DisputeContractService(
+            CONTRACTS.SECUREFLOW_ESCROW
+          );
+          txHash = await disputeContractService.disputeMilestone({
+            escrow_id: Number(escrowId),
+            milestone_index: milestoneIndex,
+            reason: disputeReason,
+            disputer: disputerAddress,
+          });
           break;
         case "resubmit":
           txHash = await contract.send(

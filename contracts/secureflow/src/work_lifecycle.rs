@@ -237,6 +237,119 @@ pub fn approve_milestone(env: &Env, escrow_id: u32, milestone_index: u32, deposi
     Ok(())
 }
 
+pub fn reject_milestone(
+    env: &Env,
+    escrow_id: u32,
+    milestone_index: u32,
+    reason: String,
+    depositor: Address,
+) -> Result<(), Error> {
+    depositor.require_auth();
+
+    escrow_core::require_valid_escrow(env, escrow_id)?;
+    let escrow = escrow_core::get_escrow(env, escrow_id)
+        .ok_or_else(|| Error::from_contract_error(SecureFlowError::EscrowNotFound as u32))?;
+
+    if escrow.depositor != depositor {
+        return Err(Error::from_contract_error(SecureFlowError::OnlyDepositor as u32));
+    }
+
+    if escrow.status != EscrowStatus::InProgress {
+        return Err(Error::from_contract_error(SecureFlowError::EscrowNotActive as u32));
+    }
+
+    if milestone_index >= escrow.milestone_count {
+        return Err(Error::from_contract_error(SecureFlowError::InvalidMilestone as u32));
+    }
+
+    // Get milestone
+    let mut milestone: crate::storage_types::Milestone = env
+        .storage()
+        .instance()
+        .get::<DataKey, crate::storage_types::Milestone>(&DataKey::Milestone(escrow_id, milestone_index))
+        .ok_or_else(|| Error::from_contract_error(SecureFlowError::InvalidMilestone as u32))?;
+
+    if milestone.status != MilestoneStatus::Submitted {
+        return Err(Error::from_contract_error(SecureFlowError::MilestoneNotSubmitted as u32));
+    }
+
+    // Update milestone status to Rejected
+    milestone.status = MilestoneStatus::Rejected;
+    milestone.rejection_reason = Some(reason);
+
+    // Save milestone
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .set(&DataKey::Milestone(escrow_id, milestone_index), &milestone);
+    
+    Ok(())
+}
+
+pub fn dispute_milestone(
+    env: &Env,
+    escrow_id: u32,
+    milestone_index: u32,
+    reason: String,
+    disputer: Address,
+) -> Result<(), Error> {
+    disputer.require_auth();
+
+    escrow_core::require_valid_escrow(env, escrow_id)?;
+    let mut escrow = escrow_core::get_escrow(env, escrow_id)
+        .ok_or_else(|| Error::from_contract_error(SecureFlowError::EscrowNotFound as u32))?;
+
+    // Check if disputer is either depositor or beneficiary
+    let is_depositor = escrow.depositor == disputer;
+    let is_beneficiary = escrow.beneficiary == Some(disputer.clone());
+    
+    if !is_depositor && !is_beneficiary {
+        return Err(Error::from_contract_error(SecureFlowError::OnlyDepositor as u32)); // Use OnlyDepositor as generic error for unauthorized
+    }
+
+    if escrow.status != EscrowStatus::InProgress {
+        return Err(Error::from_contract_error(SecureFlowError::EscrowNotActive as u32));
+    }
+
+    if milestone_index >= escrow.milestone_count {
+        return Err(Error::from_contract_error(SecureFlowError::InvalidMilestone as u32));
+    }
+
+    // Get milestone
+    let mut milestone: crate::storage_types::Milestone = env
+        .storage()
+        .instance()
+        .get::<DataKey, crate::storage_types::Milestone>(&DataKey::Milestone(escrow_id, milestone_index))
+        .ok_or_else(|| Error::from_contract_error(SecureFlowError::InvalidMilestone as u32))?;
+
+    // Can dispute submitted or approved milestones
+    if milestone.status != MilestoneStatus::Submitted && milestone.status != MilestoneStatus::Approved {
+        return Err(Error::from_contract_error(SecureFlowError::MilestoneNotSubmitted as u32));
+    }
+
+    // Update milestone status to Disputed
+    milestone.status = MilestoneStatus::Disputed;
+    milestone.disputed_at = env.ledger().sequence();
+    milestone.disputed_by = Some(disputer.clone());
+    milestone.dispute_reason = Some(reason);
+
+    // Update escrow status to Disputed
+    escrow.status = EscrowStatus::Disputed;
+
+    // Save milestone and escrow
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .set(&DataKey::Milestone(escrow_id, milestone_index), &milestone);
+    escrow_core::save_escrow(env, escrow_id, &escrow);
+    
+    Ok(())
+}
+
 fn update_reputation(env: &Env, user: Address, points: u32) {
     let current_rep: u32 = env
         .storage()

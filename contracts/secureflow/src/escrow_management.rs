@@ -132,6 +132,7 @@ pub fn create_escrow(
             disputed_at: 0,
             disputed_by: None,
             dispute_reason: None,
+            rejection_reason: None,
         };
         env.storage()
             .instance()

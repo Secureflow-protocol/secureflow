@@ -104,6 +104,7 @@ pub struct Milestone {
     pub disputed_at: u32,
     pub disputed_by: Option<Address>,
     pub dispute_reason: Option<String>,
+    pub rejection_reason: Option<String>,
 }
 
 // Application struct

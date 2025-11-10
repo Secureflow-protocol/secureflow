@@ -504,43 +504,48 @@ export default function DashboardPage() {
 
   const disputeMilestone = async (escrowId: string, milestoneIndex: number) => {
     try {
-      const contract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
-      if (!contract) return;
+      // SECURITY: Double-check that user is the depositor
+      const escrow = escrows.find((e) => e.id === escrowId);
+      if (
+        !escrow ||
+        escrow.payer.toLowerCase() !== wallet.address?.toLowerCase()
+      ) {
+        toast({
+          title: "Access Denied",
+          description: "Only the job creator can dispute milestones",
+          variant: "destructive",
+        });
+        return;
+      }
 
       setSubmittingMilestone(`${escrowId}-${milestoneIndex}`);
-      await contract.send(
-        "dispute_milestone",
-        escrowId,
-        milestoneIndex,
-        "Disputed by client"
-      );
+      const { ContractService } = await import("@/lib/web3/contract-service");
+      const contractService = new ContractService(CONTRACTS.SECUREFLOW_ESCROW);
+
+      toast({
+        title: "Disputing milestone...",
+        description: "Please confirm the transaction in your wallet",
+      });
+
+      await contractService.disputeMilestone({
+        escrow_id: Number(escrowId),
+        milestone_index: milestoneIndex,
+        reason: "Disputed by client",
+        disputer: wallet.address || "",
+      });
+
       toast({
         title: "Milestone Disputed",
         description: "A dispute has been opened for this milestone",
       });
 
-      // Get freelancer address from escrow data
-      const escrow = escrows.find((e) => e.id === escrowId);
-      const freelancerAddress = escrow?.beneficiary;
-
-      // Add cross-wallet notification for dispute opening
-      addCrossWalletNotification(
-        createMilestoneNotification("disputed", escrowId, milestoneIndex, {
-          reason: "Disputed by client",
-          clientName:
-            wallet.address!.slice(0, 6) + "..." + wallet.address!.slice(-4),
-        }),
-        wallet.address || undefined, // Client address
-        freelancerAddress // Freelancer address
-      );
-
       // Wait a moment for blockchain state to update
       await new Promise((resolve) => setTimeout(resolve, 2000));
       await fetchUserEscrows();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Dispute Failed",
-        description: "Could not open dispute. Please try again.",
+        description: error.message || "Failed to dispute milestone",
         variant: "destructive",
       });
     } finally {
@@ -593,11 +598,17 @@ export default function DashboardPage() {
 
   const openDispute = async (escrowId: string) => {
     try {
-      const contract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
-      if (!contract) return;
-
       setSubmittingMilestone(escrowId);
-      await contract.send("dispute_milestone", escrowId, 0, "General dispute");
+      const { ContractService } = await import("@/lib/web3/contract-service");
+      const contractService = new ContractService(CONTRACTS.SECUREFLOW_ESCROW);
+
+      await contractService.disputeMilestone({
+        escrow_id: Number(escrowId),
+        milestone_index: 0,
+        reason: "General dispute",
+        disputer: wallet.address || "",
+      });
+
       toast({
         title: "Dispute Opened",
         description: "A dispute has been opened for this escrow",
@@ -720,25 +731,21 @@ export default function DashboardPage() {
       }
 
       setSubmittingMilestone(`${escrowId}-${milestoneIndex}`);
-      const contract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
-      if (!contract) return;
+      const { ContractService } = await import("@/lib/web3/contract-service");
+      const contractService = new ContractService(CONTRACTS.SECUREFLOW_ESCROW);
 
       toast({
         title: "Rejecting milestone...",
         description: "Please confirm the transaction in your wallet",
       });
 
-      await contract.send(
-        "rejectMilestone",
-        "no-value",
-        escrowId,
-        milestoneIndex,
-        reason
-      );
+      await contractService.rejectMilestone({
+        escrow_id: Number(escrowId),
+        milestone_index: milestoneIndex,
+        reason: reason,
+        depositor: wallet.address || "",
+      });
 
-      // Transaction is already confirmed via waitForConfirmation in web3-context
-      // For Stellar, we don't need to poll for receipts like Ethereum
-      // The transaction hash is returned after confirmation
       toast({
         title: "Milestone Rejected",
         description: "The freelancer has been notified and can resubmit",
