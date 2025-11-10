@@ -1945,7 +1945,6 @@ export class ContractService {
       throw new Error("Depositor address is required");
     }
 
-    const walletAddress = params.depositor;
     const depositorAddress = params.depositor;
 
     console.log(
@@ -1954,19 +1953,153 @@ export class ContractService {
     );
 
     try {
-      const assembledTx = await this.client.accept_freelancer({
-        escrow_id: params.escrow_id,
-        freelancer: params.freelancer,
-        depositor: params.depositor,
+      // Build transaction manually with depositor as source account
+      // This ensures the simulation detects auth requirements
+      const { Contract, nativeToScVal } = await import("@stellar/stellar-sdk");
+      const { TransactionBuilder } = await import("@stellar/stellar-sdk");
+
+      const contract = new Contract(this.contractId);
+      const sourceAccount = await this.rpcServer.getAccount(depositorAddress);
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          contract.call(
+            "accept_freelancer",
+            nativeToScVal(params.escrow_id, { type: "u32" }),
+            nativeToScVal(params.freelancer, { type: "address" }),
+            nativeToScVal(params.depositor, { type: "address" })
+          )
+        )
+        .setTimeout(30)
+        .build();
+
+      // Simulate to check for errors and get auth entries
+      const simulation = await this.rpcServer.simulateTransaction(tx);
+
+      // Check for auth entries
+      const authEntries =
+        "auth" in simulation && simulation.auth
+          ? Array.isArray(simulation.auth)
+            ? simulation.auth
+            : []
+          : [];
+
+      console.log("[acceptFreelancer] Simulation complete", {
+        hasAuthEntries: authEntries.length > 0,
+        authEntriesCount: authEntries.length,
       });
 
-      // Pass depositorAddress as sourceAddress so the depositor signs auth entries
-      // Both walletAddress and depositorAddress are the same (the depositor)
-      return await this.sendTransactionWithAuth(
-        assembledTx,
-        walletAddress,
-        depositorAddress
+      // Check if simulation failed
+      if ("errorResult" in simulation && simulation.errorResult) {
+        const errorValue =
+          (simulation.errorResult as any).value?.() || simulation.errorResult;
+        console.error("[acceptFreelancer] Simulation failed:", errorValue);
+        throw new Error(
+          `Transaction simulation failed: ${errorValue.toString()}`
+        );
+      }
+
+      // Prepare transaction
+      const prepared = await this.rpcServer.prepareTransaction(tx);
+
+      // Sign auth entries if needed
+      if (authEntries && authEntries.length > 0) {
+        console.log("[acceptFreelancer] Signing auth entries", {
+          authSignerAddress: depositorAddress,
+          authEntriesCount: authEntries.length,
+        });
+        const signedAuthEntries = await signAuthEntries(
+          authEntries as any[],
+          depositorAddress
+        );
+        console.log("[acceptFreelancer] Auth entries signed", {
+          signedCount: signedAuthEntries.length,
+        });
+
+        // Rebuild transaction with signed auth entries
+        const { xdr } = await import("@stellar/stellar-sdk");
+        const parsedSignedAuth = signedAuthEntries.map((signed: string) =>
+          xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64")
+        );
+
+        const operations = prepared.operations;
+        if (operations && operations.length > 0) {
+          const op = operations[0];
+          if (op.type === "invokeHostFunction") {
+            const invokeOp = op as any;
+            const hostFn = invokeOp.function || invokeOp.hostFunction;
+            const newOp = Operation.invokeHostFunction({
+              function: hostFn as xdr.HostFunction,
+              auth: parsedSignedAuth,
+            } as any);
+
+            const freshAccount =
+              await this.rpcServer.getAccount(depositorAddress);
+            const newTx = new TransactionBuilder(freshAccount, {
+              fee: prepared.fee,
+              networkPassphrase: this.network.networkPassphrase,
+            })
+              .addOperation(newOp)
+              .setTimeout(30)
+              .build();
+
+            const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            const signedTxXdr = await signTransaction({
+              unsignedTransaction: newPrepared.toXDR(),
+              address: depositorAddress,
+            });
+
+            const signedTransaction = TransactionBuilder.fromXDR(
+              signedTxXdr,
+              this.network.networkPassphrase
+            );
+
+            const sendResponse =
+              await this.rpcServer.sendTransaction(signedTransaction);
+
+            if (sendResponse.status === "ERROR") {
+              throw new Error("Transaction failed");
+            }
+
+            if (sendResponse.status === "PENDING" && sendResponse.hash) {
+              return await this.waitForConfirmation(sendResponse.hash);
+            }
+
+            return sendResponse.hash || "";
+          }
+        }
+      }
+
+      // No auth entries, sign normally
+      console.log("[acceptFreelancer] Signing transaction (no auth entries)", {
+        signerAddress: depositorAddress,
+      });
+      const signedTxXdr = await signTransaction({
+        unsignedTransaction: prepared.toXDR(),
+        address: depositorAddress,
+      });
+      console.log("[acceptFreelancer] Transaction signed, sending...");
+
+      const signedTransaction = TransactionBuilder.fromXDR(
+        signedTxXdr,
+        this.network.networkPassphrase
       );
+
+      const sendResponse =
+        await this.rpcServer.sendTransaction(signedTransaction);
+
+      if (sendResponse.status === "ERROR") {
+        throw new Error("Transaction failed");
+      }
+
+      if (sendResponse.status === "PENDING" && sendResponse.hash) {
+        return await this.waitForConfirmation(sendResponse.hash);
+      }
+
+      return sendResponse.hash || "";
     } catch (error: any) {
       console.error("Error accepting freelancer:", error);
       throw error;
@@ -2426,11 +2559,20 @@ export class ContractService {
     console.log("[sendTransactionWithAuth] Transaction built from XDR");
 
     // If sourceAddress is provided, rebuild the transaction with that source account
-    // This is needed when the depositor is different from the invoker
+    // This is needed when the depositor needs to sign auth entries (even if same as walletAddress)
+    // The transaction must be built with the depositor as the source for auth to be detected
     let transactionToSimulate = tx;
-    if (sourceAddress && sourceAddress !== walletAddress) {
+    if (sourceAddress) {
+      console.log(
+        "[sendTransactionWithAuth] Rebuilding transaction with sourceAddress:",
+        sourceAddress
+      );
       const sourceAccount = await this.rpcServer.getAccount(sourceAddress);
       const operations = tx.operations;
+      console.log(
+        "[sendTransactionWithAuth] Operations count:",
+        operations?.length || 0
+      );
       if (operations && operations.length > 0) {
         const newTx = new TransactionBuilder(sourceAccount, {
           fee: tx.fee,
@@ -2439,7 +2581,19 @@ export class ContractService {
         operations.forEach((op) => newTx.addOperation(op as any));
         const timeout = (tx as any).timeout || 30;
         transactionToSimulate = newTx.setTimeout(timeout).build();
+        console.log(
+          "[sendTransactionWithAuth] Transaction rebuilt with sourceAddress:",
+          sourceAddress
+        );
+      } else {
+        console.warn(
+          "[sendTransactionWithAuth] No operations found in transaction"
+        );
       }
+    } else {
+      console.log(
+        "[sendTransactionWithAuth] No sourceAddress provided, using original transaction"
+      );
     }
 
     const simulation = await this.rpcServer.simulateTransaction(
