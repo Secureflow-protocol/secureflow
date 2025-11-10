@@ -2235,21 +2235,126 @@ export class ContractService {
     milestone_index: number;
     depositor: string;
   }): Promise<string> {
-    const { address } = useWalletStore.getState();
-    if (!address) {
-      throw new Error("Wallet not connected");
+    if (!params.depositor) {
+      throw new Error("Depositor address is required");
     }
-
-    const walletAddress = address;
-
+    console.log(
+      "[approveMilestone] Using depositor address:",
+      params.depositor
+    );
     try {
-      const assembledTx = await this.client.approve_milestone({
-        escrow_id: params.escrow_id,
-        milestone_index: params.milestone_index,
-        depositor: params.depositor,
+      const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } =
+        await import("@stellar/stellar-sdk");
+      const { signTransaction, signAuthEntries } = await import(
+        "./wallet-signer"
+      );
+      const contract = new Contract(this.contractId);
+      const sourceAccount = await this.rpcServer.getAccount(params.depositor);
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          contract.call(
+            "approve_milestone",
+            nativeToScVal(params.escrow_id, { type: "u32" }),
+            nativeToScVal(params.milestone_index, { type: "u32" }),
+            nativeToScVal(params.depositor, { type: "address" })
+          )
+        )
+        .setTimeout(30)
+        .build();
+      console.log("[approveMilestone] Transaction built, simulating...");
+      const simulation = await this.rpcServer.simulateTransaction(tx);
+      const authEntries =
+        "auth" in simulation && simulation.auth
+          ? Array.isArray(simulation.auth)
+            ? simulation.auth
+            : []
+          : [];
+      console.log("[approveMilestone] Simulation complete", {
+        hasAuthEntries: authEntries.length > 0,
+        authEntriesCount: authEntries.length,
       });
-
-      return await this.sendTransactionWithAuth(assembledTx, walletAddress);
+      if ("errorResult" in simulation && simulation.errorResult) {
+        const errorValue =
+          (simulation.errorResult as any).value?.() || simulation.errorResult;
+        console.error("[approveMilestone] Simulation failed:", errorValue);
+        throw new Error(
+          `Transaction simulation failed: ${errorValue.toString()}`
+        );
+      }
+      const prepared = await this.rpcServer.prepareTransaction(tx);
+      let signedTxXdr: string;
+      if (authEntries && authEntries.length > 0) {
+        console.log("[approveMilestone] Signing auth entries", {
+          authSignerAddress: params.depositor,
+          authEntriesCount: authEntries.length,
+        });
+        const signedAuthEntries = await signAuthEntries(
+          authEntries as any[],
+          params.depositor
+        );
+        console.log("[approveMilestone] Auth entries signed", {
+          signedCount: signedAuthEntries.length,
+        });
+        const parsedSignedAuth = signedAuthEntries.map((signed: string) =>
+          xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64")
+        );
+        const operations = prepared.operations;
+        if (operations && operations.length > 0) {
+          const op = operations[0];
+          if (op.type === "invokeHostFunction") {
+            const invokeOp = op as any;
+            const hostFn = invokeOp.function || invokeOp.hostFunction;
+            const newOp = Operation.invokeHostFunction({
+              function: hostFn as xdr.HostFunction,
+              auth: parsedSignedAuth,
+            } as any);
+            const freshAccount = await this.rpcServer.getAccount(
+              params.depositor
+            );
+            const newTx = new TransactionBuilder(freshAccount, {
+              fee: prepared.fee,
+              networkPassphrase: this.network.networkPassphrase,
+            })
+              .addOperation(newOp)
+              .setTimeout(30)
+              .build();
+            const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            signedTxXdr = await signTransaction({
+              unsignedTransaction: newPrepared.toXDR(),
+              address: params.depositor,
+            });
+          } else {
+            throw new Error("Expected invokeHostFunction operation");
+          }
+        } else {
+          throw new Error("No operations found in prepared transaction");
+        }
+      } else {
+        console.log("[approveMilestone] No auth entries, signing normally", {
+          signerAddress: params.depositor,
+        });
+        signedTxXdr = await signTransaction({
+          unsignedTransaction: prepared.toXDR(),
+          address: params.depositor,
+        });
+      }
+      console.log("[approveMilestone] Transaction signed, sending...");
+      const signedTransaction = TransactionBuilder.fromXDR(
+        signedTxXdr,
+        this.network.networkPassphrase
+      );
+      const sendResponse =
+        await this.rpcServer.sendTransaction(signedTransaction);
+      if (sendResponse.status === "ERROR") {
+        throw new Error("Transaction failed");
+      }
+      if (sendResponse.status === "PENDING" && sendResponse.hash) {
+        return await this.waitForConfirmation(sendResponse.hash);
+      }
+      return sendResponse.hash || "";
     } catch (error: any) {
       console.error("Error approving milestone:", error);
       throw error;

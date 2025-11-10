@@ -233,11 +233,17 @@ export function EscrowCard({
                           showSubmitButton={false} // Hide submit buttons on dashboard
                           payerAddress={escrow.payer} // Client address for notifications
                           beneficiaryAddress={escrow.beneficiary} // Freelancer address for notifications
-                          onSuccess={() => {
+                          onSuccess={async () => {
                             // Refresh the escrow data
                             window.dispatchEvent(
                               new CustomEvent("escrowUpdated")
                             );
+                            // Wait a moment for blockchain state to update
+                            await new Promise((resolve) =>
+                              setTimeout(resolve, 2000)
+                            );
+                            // Reload the page to ensure UI is fully updated
+                            window.location.reload();
                           }}
                         />
                       </div>

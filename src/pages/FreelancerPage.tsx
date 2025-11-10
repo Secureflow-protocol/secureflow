@@ -190,11 +190,11 @@ export default function FreelancerPage() {
 
           if (!escrowData) {
             console.log(`[FreelancerPage] Escrow ${i} does not exist`);
-            continue;
-          }
+              continue;
+            }
 
-          // Check if current user is the beneficiary
-          const isBeneficiary =
+            // Check if current user is the beneficiary
+            const isBeneficiary =
             escrowData.freelancer &&
             escrowData.freelancer.toLowerCase().trim() ===
               wallet.address.toLowerCase().trim();
@@ -258,24 +258,24 @@ export default function FreelancerPage() {
                         1000
                     : undefined;
 
-                // Track milestone states for submission prevention
-                const milestoneKey = `${i}-${index}`;
+                    // Track milestone states for submission prevention
+                    const milestoneKey = `${i}-${index}`;
                 if (status === "approved") {
-                  setApprovedMilestones(
-                    (prev) => new Set([...prev, milestoneKey])
-                  );
+                      setApprovedMilestones(
+                        (prev) => new Set([...prev, milestoneKey])
+                      );
                 } else if (status === "submitted") {
-                  setSubmittedMilestones(
-                    (prev) => new Set([...prev, milestoneKey])
-                  );
-                }
+                      setSubmittedMilestones(
+                        (prev) => new Set([...prev, milestoneKey])
+                      );
+                    }
 
-                return {
+                    return {
                   description: m.description || "",
                   amount: m.amount?.toString() || "0",
                   status,
-                  submittedAt,
-                  approvedAt,
+                      submittedAt,
+                      approvedAt,
                   disputeReason: m.dispute_reason || undefined,
                   rejectionReason: undefined,
                 };
@@ -304,16 +304,16 @@ export default function FreelancerPage() {
               projectDescription: escrowData.project_description || "",
               isOpenJob: false, // Not an open job if freelancer is assigned
               milestoneCount: allMilestones.length,
-            };
+              };
 
-            freelancerEscrows.push(escrow);
+              freelancerEscrows.push(escrow);
             console.log(
               `[FreelancerPage] Added escrow ${i} to freelancer escrows`
             );
-          }
-        } catch (error) {
+            }
+          } catch (error) {
           console.error(`[FreelancerPage] Error checking escrow ${i}:`, error);
-          continue;
+            continue;
         }
       }
 
