@@ -3,8 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { motion } from "framer-motion";
-import { Clock, DollarSign, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, DollarSign, ChevronDown, ChevronUp, Star } from "lucide-react";
 import { MilestoneActions } from "@/components/milestone-actions";
+import { RatingDialog } from "@/components/rating/rating-dialog";
+import { useState, useEffect } from "react";
+import { contractService } from "@/lib/web3/contract-service";
 import type { Escrow } from "@/lib/web3/types";
 
 interface EscrowCardProps {
@@ -40,6 +43,33 @@ export function EscrowCard({
   calculateDaysLeft,
   getDaysLeftMessage,
 }: EscrowCardProps) {
+  const [showRatingDialog, setShowRatingDialog] = useState(false);
+  const [hasRating, setHasRating] = useState(false);
+  const [existingRating, setExistingRating] = useState<{
+    rating: number;
+    review: string;
+  } | null>(null);
+
+  // Check if rating exists for this escrow
+  useEffect(() => {
+    if (escrow.status === "completed" && escrow.isClient) {
+      contractService
+        .getRating(Number.parseInt(escrow.id, 10))
+        .then((rating) => {
+          if (rating) {
+            setHasRating(true);
+            setExistingRating({
+              rating: rating.rating,
+              review: rating.review,
+            });
+          }
+        })
+        .catch((error) => {
+          console.error("Error checking rating:", error);
+        });
+    }
+  }, [escrow.id, escrow.status, escrow.isClient]);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
@@ -252,9 +282,55 @@ export function EscrowCard({
                 </div>
               </div>
             )}
+
+            {/* Rating Section for Completed Escrows */}
+            {escrow.status === "completed" && escrow.isClient && (
+              <div className="mt-4 pt-4 border-t">
+                {hasRating ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="font-medium">
+                        Your Rating: {existingRating?.rating}/5
+                      </span>
+                    </div>
+                    {existingRating?.review && (
+                      <div className="bg-muted/20 rounded-lg p-3 text-sm">
+                        {existingRating.review}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Button
+                    onClick={() => setShowRatingDialog(true)}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    <Star className="h-4 w-4 mr-2" />
+                    Rate Freelancer
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Rating Dialog */}
+      {escrow.status === "completed" && escrow.beneficiary && (
+        <RatingDialog
+          open={showRatingDialog}
+          onOpenChange={setShowRatingDialog}
+          escrowId={Number.parseInt(escrow.id, 10)}
+          freelancerAddress={escrow.beneficiary}
+          onRatingSubmitted={() => {
+            setHasRating(true);
+            // Refresh to show the rating
+            window.location.reload();
+          }}
+        />
+      )}
     </motion.div>
   );
 }

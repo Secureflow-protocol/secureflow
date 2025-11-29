@@ -4,6 +4,7 @@ mod admin;
 mod escrow_core;
 mod escrow_management;
 mod marketplace;
+mod ratings;
 mod refund_system;
 mod storage_types;
 mod work_lifecycle;
@@ -232,6 +233,37 @@ impl SecureFlow {
     /// Get all milestones for an escrow
     pub fn get_milestones(env: Env, escrow_id: u32) -> Vec<Milestone> {
         work_lifecycle::get_milestones(&env, escrow_id)
+    }
+
+    /// Submit a rating for a completed escrow
+    pub fn submit_rating(
+        env: Env,
+        escrow_id: u32,
+        rating: u32,
+        review: String,
+        client: Address,
+    ) -> Result<(), Error> {
+        ratings::submit_rating(&env, escrow_id, rating, review, client)
+    }
+
+    /// Get rating for an escrow
+    pub fn get_rating(env: Env, escrow_id: u32) -> Option<Rating> {
+        ratings::get_rating(&env, escrow_id)
+    }
+
+    /// Get average rating for a freelancer (returns (total_rating, count))
+    pub fn get_average_rating(env: Env, freelancer: Address) -> (u32, u32) {
+        ratings::get_average_rating(&env, freelancer)
+    }
+
+    /// Get badge for a freelancer
+    pub fn get_badge(env: Env, freelancer: Address) -> Badge {
+        ratings::get_badge(&env, freelancer)
+    }
+
+    /// Get completed escrows count for a user
+    pub fn get_completed_escrows(env: Env, user: Address) -> u32 {
+        ratings::get_completed_escrows(&env, user)
     }
 }
 

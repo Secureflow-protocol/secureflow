@@ -170,6 +170,9 @@ export default function ApprovalsPage() {
                     proposedTimeline: app.proposed_timeline,
                     appliedAt: approxAppliedAt, // Approximate timestamp from ledger sequence
                     status: "pending" as const,
+                    badge: app.badge,
+                    averageRating: app.averageRating,
+                    ratingCount: app.ratingCount,
                   });
                 }
 

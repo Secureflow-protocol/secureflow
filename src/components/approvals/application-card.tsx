@@ -3,14 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { User, Calendar } from "lucide-react";
+import { BadgeDisplay, RatingDisplay } from "@/components/rating/badge-display";
+import type { Application as ApplicationType } from "@/lib/web3/types";
 
-interface Application {
-  freelancerAddress: string;
-  coverLetter: string;
-  proposedTimeline: number;
-  appliedAt: number;
-  status: "pending" | "accepted" | "rejected";
-}
+interface Application extends ApplicationType {}
 
 interface ApplicationCardProps {
   application: Application;
@@ -29,12 +25,20 @@ export function ApplicationCard({
     <Card key={index} className="p-4 border-border/40">
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <User className="h-4 w-4 text-primary" />
             <span className="font-medium text-sm">
               {application.freelancerAddress.slice(0, 6)}...
               {application.freelancerAddress.slice(-4)}
             </span>
+            {application.badge && <BadgeDisplay badge={application.badge} />}
+            {(application.averageRating !== undefined ||
+              application.ratingCount !== undefined) && (
+              <RatingDisplay
+                averageRating={application.averageRating}
+                ratingCount={application.ratingCount}
+              />
+            )}
             <Badge
               variant="secondary"
               className="text-xs bg-blue-100 text-blue-800"

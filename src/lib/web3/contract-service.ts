@@ -823,7 +823,320 @@ export class ContractService {
   }
 
   /**
+   * Get badge for a freelancer
+   */
+  async getBadge(
+    freelancerAddress: string
+  ): Promise<"Beginner" | "Intermediate" | "Advanced" | "Expert"> {
+    try {
+      const contract = new Contract(this.contractId);
+      const sourceAddress =
+        useWalletStore.getState().address ||
+        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+      const sourceAccount = {
+        accountId: () => sourceAddress,
+        sequenceNumber: () => "0",
+        incrementSequenceNumber: () => {},
+      } as any;
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          contract.call(
+            "get_badge",
+            nativeToScVal(freelancerAddress, { type: "address" })
+          )
+        )
+        .setTimeout(30)
+        .build();
+
+      const simulation = await this.rpcServer.simulateTransaction(tx);
+
+      if ("errorResult" in simulation && simulation.errorResult) {
+        console.warn("[getBadge] Error:", simulation.errorResult);
+        return "Beginner"; // Default
+      }
+
+      if ("result" in simulation && simulation.result) {
+        const retval = (simulation.result as any).retval;
+        if (retval) {
+          const badge = scValToNative(retval as xdr.ScVal);
+          const badgeMap: Record<
+            number,
+            "Beginner" | "Intermediate" | "Advanced" | "Expert"
+          > = {
+            0: "Beginner",
+            1: "Intermediate",
+            2: "Advanced",
+            3: "Expert",
+          };
+          return badgeMap[badge as number] || "Beginner";
+        }
+      }
+
+      return "Beginner";
+    } catch (error) {
+      console.error("[getBadge] Error:", error);
+      return "Beginner";
+    }
+  }
+
+  /**
+   * Get average rating for a freelancer
+   */
+  async getAverageRating(
+    freelancerAddress: string
+  ): Promise<{ average: number; count: number }> {
+    try {
+      const contract = new Contract(this.contractId);
+      const sourceAddress =
+        useWalletStore.getState().address ||
+        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+      const sourceAccount = {
+        accountId: () => sourceAddress,
+        sequenceNumber: () => "0",
+        incrementSequenceNumber: () => {},
+      } as any;
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          contract.call(
+            "get_average_rating",
+            nativeToScVal(freelancerAddress, { type: "address" })
+          )
+        )
+        .setTimeout(30)
+        .build();
+
+      const simulation = await this.rpcServer.simulateTransaction(tx);
+
+      if ("errorResult" in simulation && simulation.errorResult) {
+        console.warn("[getAverageRating] Error:", simulation.errorResult);
+        return { average: 0, count: 0 };
+      }
+
+      if ("result" in simulation && simulation.result) {
+        const retval = (simulation.result as any).retval;
+        if (retval) {
+          const result = scValToNative(retval as xdr.ScVal) as [number, number];
+          const [total, count] = result;
+          return {
+            average: count > 0 ? total / count : 0,
+            count,
+          };
+        }
+      }
+
+      return { average: 0, count: 0 };
+    } catch (error) {
+      console.error("[getAverageRating] Error:", error);
+      return { average: 0, count: 0 };
+    }
+  }
+
+  /**
+   * Submit a rating for a completed escrow
+   */
+  async submitRating(
+    escrowId: number,
+    rating: number,
+    review: string
+  ): Promise<string> {
+    try {
+      const walletAddress = useWalletStore.getState().address;
+      if (!walletAddress) {
+        throw new Error("Wallet not connected");
+      }
+
+      const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } =
+        await import("@stellar/stellar-sdk");
+      const { signTransaction, signAuthEntries } = await import(
+        "./wallet-signer"
+      );
+
+      const contract = new Contract(this.contractId);
+      const sourceAccount = await this.rpcServer.getAccount(walletAddress);
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          contract.call(
+            "submit_rating",
+            nativeToScVal(escrowId, { type: "u32" }),
+            nativeToScVal(rating, { type: "u32" }),
+            nativeToScVal(review, { type: "string" }),
+            nativeToScVal(walletAddress, { type: "address" })
+          )
+        )
+        .setTimeout(30)
+        .build();
+
+      const simulation = await this.rpcServer.simulateTransaction(tx);
+
+      const authEntries =
+        "auth" in simulation && simulation.auth
+          ? Array.isArray(simulation.auth)
+            ? simulation.auth
+            : []
+          : [];
+
+      if ("errorResult" in simulation && simulation.errorResult) {
+        const errorValue =
+          (simulation.errorResult as any).value?.() || simulation.errorResult;
+        throw new Error(
+          `Transaction simulation failed: ${errorValue.toString()}`
+        );
+      }
+
+      const prepared = await this.rpcServer.prepareTransaction(tx);
+
+      let signedTxXdr: string;
+
+      if (authEntries && authEntries.length > 0) {
+        const signedAuthEntries = await signAuthEntries(
+          authEntries as any[],
+          walletAddress
+        );
+
+        const parsedSignedAuth = signedAuthEntries.map((signed: string) =>
+          xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64")
+        );
+
+        const operations = prepared.operations;
+        if (operations && operations.length > 0) {
+          const op = operations[0];
+          if (op.type === "invokeHostFunction") {
+            const invokeOp = op as any;
+            const hostFn = invokeOp.function || invokeOp.hostFunction;
+            const newOp = Operation.invokeHostFunction({
+              function: hostFn as xdr.HostFunction,
+              auth: parsedSignedAuth,
+            } as any);
+
+            const freshAccount = await this.rpcServer.getAccount(walletAddress);
+            const newTx = new TransactionBuilder(freshAccount, {
+              fee: prepared.fee,
+              networkPassphrase: this.network.networkPassphrase,
+            })
+              .addOperation(newOp)
+              .setTimeout(30)
+              .build();
+
+            const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            signedTxXdr = await signTransaction({
+              unsignedTransaction: newPrepared.toXDR(),
+              address: walletAddress,
+            });
+          } else {
+            throw new Error("Expected invokeHostFunction operation");
+          }
+        } else {
+          throw new Error("No operations found in prepared transaction");
+        }
+      } else {
+        signedTxXdr = await signTransaction({
+          unsignedTransaction: prepared.toXDR(),
+          address: walletAddress,
+        });
+      }
+
+      const signedTransaction = TransactionBuilder.fromXDR(
+        signedTxXdr,
+        this.network.networkPassphrase
+      );
+
+      const sendResponse =
+        await this.rpcServer.sendTransaction(signedTransaction);
+
+      if (sendResponse.status === "ERROR") {
+        throw new Error("Transaction failed");
+      }
+
+      if (sendResponse.status === "PENDING" && sendResponse.hash) {
+        return await this.waitForConfirmation(sendResponse.hash);
+      }
+
+      return sendResponse.hash || "";
+    } catch (error: any) {
+      console.error("[submitRating] Error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get rating for an escrow
+   */
+  async getRating(escrowId: number): Promise<{
+    escrowId: number;
+    freelancer: string;
+    client: string;
+    rating: number;
+    review: string;
+    ratedAt: number;
+  } | null> {
+    try {
+      const contract = new Contract(this.contractId);
+      const sourceAddress =
+        useWalletStore.getState().address ||
+        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+      const sourceAccount = {
+        accountId: () => sourceAddress,
+        sequenceNumber: () => "0",
+        incrementSequenceNumber: () => {},
+      } as any;
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          contract.call("get_rating", nativeToScVal(escrowId, { type: "u32" }))
+        )
+        .setTimeout(30)
+        .build();
+
+      const simulation = await this.rpcServer.simulateTransaction(tx);
+
+      if ("errorResult" in simulation && simulation.errorResult) {
+        console.warn("[getRating] Error:", simulation.errorResult);
+        return null;
+      }
+
+      if ("result" in simulation && simulation.result) {
+        const retval = (simulation.result as any).retval;
+        if (retval) {
+          const rating = scValToNative(retval as xdr.ScVal) as any;
+          return {
+            escrowId: rating.escrow_id || rating.escrowId,
+            freelancer: rating.freelancer,
+            client: rating.client,
+            rating: rating.rating,
+            review: rating.review,
+            ratedAt: rating.rated_at || rating.ratedAt,
+          };
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error("[getRating] Error:", error);
+      return null;
+    }
+  }
+
+  /**
    * Get all applications for a job by reading from storage
+   * Now includes badge and rating information
    */
   async getApplications(escrowId: number): Promise<
     Array<{
@@ -831,6 +1144,9 @@ export class ContractService {
       cover_letter: string;
       proposed_timeline: number;
       applied_at: number;
+      badge?: "Beginner" | "Intermediate" | "Advanced" | "Expert";
+      averageRating?: number;
+      ratingCount?: number;
     }>
   > {
     try {
@@ -951,25 +1267,42 @@ export class ContractService {
                 const parsed = scValToNative(retval as xdr.ScVal);
                 console.log(`[getApplications] Found result.retval:`, parsed);
                 if (Array.isArray(parsed)) {
-                  const applications = parsed.map((app: any) => ({
-                    freelancer: String(app.freelancer || app[0] || ""),
-                    cover_letter: String(
-                      app.cover_letter || app.coverLetter || app[1] || ""
-                    ),
-                    proposed_timeline: Number(
-                      app.proposed_timeline ||
-                        app.proposedTimeline ||
-                        app[2] ||
-                        0
-                    ),
-                    applied_at: Number(
-                      app.applied_at || app.appliedAt || app[3] || 0
-                    ),
-                  }));
-                  console.log(
-                    `[getApplications] Successfully retrieved ${applications.length} applications from result.retval`
+                  // Fetch badge and rating for each freelancer
+                  const applicationsWithMetadata = await Promise.all(
+                    parsed.map(async (app: any) => {
+                      const freelancerAddress = String(
+                        app.freelancer || app[0] || ""
+                      );
+                      const [badge, ratingInfo] = await Promise.all([
+                        this.getBadge(freelancerAddress),
+                        this.getAverageRating(freelancerAddress),
+                      ]);
+
+                      return {
+                        freelancer: freelancerAddress,
+                        cover_letter: String(
+                          app.cover_letter || app.coverLetter || app[1] || ""
+                        ),
+                        proposed_timeline: Number(
+                          app.proposed_timeline ||
+                            app.proposedTimeline ||
+                            app[2] ||
+                            0
+                        ),
+                        applied_at: Number(
+                          app.applied_at || app.appliedAt || app[3] || 0
+                        ),
+                        badge,
+                        averageRating: ratingInfo.average,
+                        ratingCount: ratingInfo.count,
+                      };
+                    })
                   );
-                  return applications;
+
+                  console.log(
+                    `[getApplications] Successfully retrieved ${applicationsWithMetadata.length} applications from result.retval`
+                  );
+                  return applicationsWithMetadata;
                 }
               } catch (e) {
                 console.warn(
@@ -2505,8 +2838,11 @@ export class ContractService {
     }
     console.log("[disputeMilestone] Using disputer address:", params.disputer);
     try {
-      const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } = await import("@stellar/stellar-sdk");
-      const { signTransaction, signAuthEntries } = await import("./wallet-signer");
+      const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } =
+        await import("@stellar/stellar-sdk");
+      const { signTransaction, signAuthEntries } = await import(
+        "./wallet-signer"
+      );
       const contract = new Contract(this.contractId);
       const sourceAccount = await this.rpcServer.getAccount(params.disputer);
       const tx = new TransactionBuilder(sourceAccount, {
@@ -2571,7 +2907,9 @@ export class ContractService {
               function: hostFn as xdr.HostFunction,
               auth: parsedSignedAuth,
             } as any);
-            const freshAccount = await this.rpcServer.getAccount(params.disputer);
+            const freshAccount = await this.rpcServer.getAccount(
+              params.disputer
+            );
             const newTx = new TransactionBuilder(freshAccount, {
               fee: prepared.fee,
               networkPassphrase: this.network.networkPassphrase,
@@ -2604,7 +2942,8 @@ export class ContractService {
         signedTxXdr,
         this.network.networkPassphrase
       );
-      const sendResponse = await this.rpcServer.sendTransaction(signedTransaction);
+      const sendResponse =
+        await this.rpcServer.sendTransaction(signedTransaction);
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
       }

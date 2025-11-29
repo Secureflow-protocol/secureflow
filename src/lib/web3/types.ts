@@ -55,4 +55,18 @@ export interface Application {
   proposedTimeline: number;
   appliedAt: number;
   status: "pending" | "accepted" | "rejected";
+  badge?: "Beginner" | "Intermediate" | "Advanced" | "Expert";
+  averageRating?: number;
+  ratingCount?: number;
 }
+
+export interface Rating {
+  escrowId: number;
+  freelancer: string;
+  client: string;
+  rating: number; // 1-5
+  review: string;
+  ratedAt: number;
+}
+
+export type Badge = "Beginner" | "Intermediate" | "Advanced" | "Expert";
