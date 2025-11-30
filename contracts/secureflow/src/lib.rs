@@ -84,6 +84,17 @@ impl SecureFlow {
         work_lifecycle::submit_milestone(&env, escrow_id, milestone_index, beneficiary, description)
     }
 
+    /// Resubmit a rejected milestone
+    pub fn resubmit_milestone(
+        env: Env,
+        escrow_id: u32,
+        milestone_index: u32,
+        description: String,
+        beneficiary: Address,
+    ) -> Result<(), Error> {
+        work_lifecycle::resubmit_milestone(&env, escrow_id, milestone_index, beneficiary, description)
+    }
+
     /// Approve a milestone
     pub fn approve_milestone(env: Env, escrow_id: u32, milestone_index: u32, depositor: Address) -> Result<(), Error> {
         work_lifecycle::approve_milestone(&env, escrow_id, milestone_index, depositor)

@@ -288,6 +288,61 @@ pub fn reject_milestone(
     Ok(())
 }
 
+pub fn resubmit_milestone(
+    env: &Env,
+    escrow_id: u32,
+    milestone_index: u32,
+    beneficiary: Address,
+    description: String,
+) -> Result<(), Error> {
+    beneficiary.require_auth();
+
+    escrow_core::require_valid_escrow(env, escrow_id)?;
+    let escrow = escrow_core::get_escrow(env, escrow_id)
+        .ok_or_else(|| Error::from_contract_error(SecureFlowError::EscrowNotFound as u32))?;
+
+    if escrow.beneficiary != Some(beneficiary.clone()) {
+        return Err(Error::from_contract_error(SecureFlowError::OnlyBeneficiary as u32));
+    }
+
+    if escrow.status != EscrowStatus::InProgress {
+        return Err(Error::from_contract_error(SecureFlowError::InvalidEscrowStatus as u32));
+    }
+
+    if milestone_index >= escrow.milestone_count {
+        return Err(Error::from_contract_error(SecureFlowError::InvalidMilestone as u32));
+    }
+
+    // Get milestone
+    let mut milestone: crate::storage_types::Milestone = env
+        .storage()
+        .instance()
+        .get::<DataKey, crate::storage_types::Milestone>(&DataKey::Milestone(escrow_id, milestone_index))
+        .ok_or_else(|| Error::from_contract_error(SecureFlowError::InvalidMilestone as u32))?;
+
+    // Only allow resubmission if milestone is Rejected
+    if milestone.status != MilestoneStatus::Rejected {
+        return Err(Error::from_contract_error(SecureFlowError::MilestoneAlreadyProcessed as u32));
+    }
+
+    // Update milestone status to Submitted and update description
+    milestone.status = MilestoneStatus::Submitted;
+    milestone.submitted_at = env.ledger().sequence();
+    milestone.description = description;
+    // Clear rejection reason when resubmitting
+    milestone.rejection_reason = None;
+
+    // Save milestone
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+    env.storage()
+        .instance()
+        .set(&DataKey::Milestone(escrow_id, milestone_index), &milestone);
+    
+    Ok(())
+}
+
 pub fn dispute_milestone(
     env: &Env,
     escrow_id: u32,

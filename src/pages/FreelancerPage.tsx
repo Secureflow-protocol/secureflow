@@ -388,7 +388,7 @@ export default function FreelancerPage() {
                   submittedAt,
                   approvedAt,
                   disputeReason: m.dispute_reason || undefined,
-                  rejectionReason: undefined,
+                  rejectionReason: m.rejection_reason || undefined,
                 };
               }
             );
@@ -853,21 +853,22 @@ export default function FreelancerPage() {
 
     try {
       setSubmittingMilestone(`${escrowId}-${milestoneIndex}`);
-      const contract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
 
       toast({
         title: "Resubmitting milestone...",
         description: "Submitting transaction to resubmit your milestone",
       });
 
-      // Stellar: Use direct contract call
-      await contract.send(
-        "submit_milestone", // Use submit_milestone for resubmission
-        Number(escrowId),
-        milestoneIndex,
-        description,
-        wallet.address // beneficiary parameter
-      );
+      // Use ContractService resubmitMilestone for rejected milestones
+      const { ContractService } = await import("@/lib/web3/contract-service");
+      const contractService = new ContractService(CONTRACTS.SECUREFLOW_ESCROW);
+
+      await contractService.resubmitMilestone({
+        escrow_id: Number(escrowId),
+        milestone_index: milestoneIndex,
+        description: description,
+        beneficiary: wallet.address || "",
+      });
 
       // Transaction is already confirmed via waitForConfirmation in web3-context
       // For Stellar, we don't need to poll for receipts like Ethereum
@@ -1882,7 +1883,7 @@ export default function FreelancerPage() {
 
         {/* Dispute Dialog */}
         {showDisputeDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50">
             <Card className="w-full max-w-md mx-4">
               <CardHeader>
                 <CardTitle>Open Dispute</CardTitle>
@@ -1942,25 +1943,28 @@ export default function FreelancerPage() {
 
         {/* Resubmit Dialog */}
         {showResubmitDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50">
             <Card className="w-full max-w-md mx-4">
-              <CardHeader>
-                <CardTitle>Resubmit Milestone</CardTitle>
-                <CardDescription>
-                  Resubmit milestone 1 for client review. Make sure you've
-                  addressed the feedback.
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Resubmit Milestone</CardTitle>
+                <CardDescription className="text-sm">
+                  Resubmit milestone{" "}
+                  {selectedResubmitMilestone !== null
+                    ? selectedResubmitMilestone + 1
+                    : ""}{" "}
+                  for client review. Make sure you've addressed the feedback.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+              <CardContent className="pt-0">
+                <div className="space-y-3">
                   {/* Show rejection reason if available */}
                   {selectedResubmitEscrow &&
                     selectedResubmitMilestone !== null && (
                       <div>
-                        <label className="block text-sm font-medium mb-2 text-red-600">
+                        <label className="block text-sm font-medium mb-1.5 text-red-600">
                           Rejection Reason
                         </label>
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                        <div className="p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-300">
                           {(() => {
                             const escrow = escrows.find(
                               (e) => e.id === selectedResubmitEscrow
@@ -1985,22 +1989,22 @@ export default function FreelancerPage() {
                     )}
 
                   <div>
-                    <label className="block text-sm font-medium mb-2">
+                    <label className="block text-sm font-medium mb-1.5">
                       Update Message
                     </label>
                     <textarea
                       value={resubmitDescription}
                       onChange={(e) => setResubmitDescription(e.target.value)}
                       placeholder="Describe the improvements you've made to address the client's feedback..."
-                      className="w-full p-3 border rounded-lg resize-none"
-                      rows={4}
+                      className="w-full p-2.5 border rounded-lg resize-none text-sm"
+                      rows={3}
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       This message will be sent to the client along with your
                       resubmission.
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 pt-1">
                     <Button
                       onClick={() => {
                         if (

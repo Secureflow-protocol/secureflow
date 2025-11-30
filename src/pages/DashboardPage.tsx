@@ -355,7 +355,7 @@ export default function DashboardPage() {
                   submittedAt,
                   approvedAt,
                   disputeReason: m.dispute_reason || undefined,
-                  rejectionReason: undefined,
+                  rejectionReason: m.rejection_reason || undefined,
                 };
               }
             );
