@@ -121,7 +121,7 @@ export function Navbar() {
               Dashboard
             </Link>
 
-            {isJobCreator && (
+            {isJobCreator && hasPendingApprovals && (
               <Link
                 to="/approvals"
                 className={`text-sm font-medium transition-colors ${
@@ -130,7 +130,7 @@ export function Navbar() {
                     : "hover:text-primary"
                 }`}
               >
-                Approvals{hasPendingApprovals && " (New)"}
+                Approvals
               </Link>
             )}
             {isFreelancer && (
@@ -248,7 +248,7 @@ export function Navbar() {
                 >
                   Dashboard
                 </Link>
-                {isJobCreator && (
+                {isJobCreator && hasPendingApprovals && (
                   <Link
                     to="/approvals"
                     className={`text-sm font-medium transition-colors py-2 ${
@@ -258,7 +258,7 @@ export function Navbar() {
                     }`}
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Approvals{hasPendingApprovals && " (New)"}
+                    Approvals
                   </Link>
                 )}
                 {isFreelancer && (

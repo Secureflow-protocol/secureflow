@@ -595,7 +595,7 @@ export default function ApprovalsPage() {
             return null;
           })()}
           <div
-            className="bg-background rounded-lg max-w-md w-full border shadow-2xl"
+            className="bg-background rounded-lg max-w-lg w-full border shadow-2xl"
             onClick={(e) => {
               e.stopPropagation();
             }}
@@ -605,8 +605,8 @@ export default function ApprovalsPage() {
 
               <div className="space-y-4">
                 <div>
-                  <p className="font-medium">Freelancer Address:</p>
-                  <p className="text-sm text-muted-foreground font-mono">
+                  <p className="font-medium mb-2">Freelancer Address:</p>
+                  <p className="text-sm text-muted-foreground font-mono break-all bg-muted/30 p-3 rounded-md">
                     {selectedFreelancer.freelancerAddress}
                   </p>
                 </div>
