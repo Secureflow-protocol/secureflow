@@ -265,5 +265,10 @@ impl SecureFlow {
     pub fn get_completed_escrows(env: Env, user: Address) -> u32 {
         ratings::get_completed_escrows(&env, user)
     }
+
+    /// Check if an address is an authorized arbiter
+    pub fn is_authorized_arbiter(env: Env, arbiter: Address) -> bool {
+        escrow_core::is_authorized_arbiter(&env, arbiter)
+    }
 }
 

@@ -188,9 +188,46 @@ export function MilestoneActions({
       }
 
       if (txHash) {
-        toast({
-          title: "Transaction submitted",
+        const successMessages: Record<
+          string,
+          { title: string; description: string }
+        > = {
+          start: {
+            title: "Work Started",
+            description: "You have successfully started work on this escrow",
+          },
+          submit: {
+            title: "Milestone Submitted",
+            description: "Your milestone has been submitted for review",
+          },
+          approve: {
+            title: "Milestone Approved",
+            description: "Payment has been released to the freelancer",
+          },
+          reject: {
+            title: "Milestone Rejected",
+            description:
+              "The milestone has been rejected. The freelancer can resubmit",
+          },
+          dispute: {
+            title: "Dispute Created",
+            description:
+              "A dispute has been created and will be reviewed by an arbiter",
+          },
+          resubmit: {
+            title: "Milestone Resubmitted",
+            description: "Your milestone has been resubmitted for review",
+          },
+        };
+
+        const message = successMessages[actionType] || {
+          title: "Transaction Successful",
           description: "Your transaction has been submitted successfully",
+        };
+
+        toast({
+          title: message.title,
+          description: message.description,
         });
         setDialogOpen(false);
         onSuccess();

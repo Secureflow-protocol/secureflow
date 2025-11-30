@@ -12,7 +12,11 @@ import {
 import { useAdminStatus } from "@/hooks/use-admin-status";
 import { useToast } from "@/hooks/use-toast";
 import { CONTRACTS } from "@/lib/web3/config";
-import { usePauseJobCreation, useUnpauseJobCreation } from "@/hooks/use-admin";
+import {
+  usePauseJobCreation,
+  useUnpauseJobCreation,
+  useAuthorizeArbiter,
+} from "@/hooks/use-admin";
 import { contractService } from "@/lib/web3/contract-service";
 import { useWeb3 } from "@/contexts/web3-context";
 
@@ -25,6 +29,8 @@ import {
   Pause,
   Download,
   AlertTriangle,
+  User,
+  Scale,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -34,22 +40,29 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function AdminPage() {
   const { wallet, getContract } = useWeb3();
-  const { isAdmin, loading: adminLoading } = useAdminStatus();
+  const {
+    isAdmin,
+    isOwner,
+    isArbiter,
+    loading: adminLoading,
+  } = useAdminStatus();
   const { toast } = useToast();
   const pauseJobCreation = usePauseJobCreation();
   const unpauseJobCreation = useUnpauseJobCreation();
+  const authorizeArbiterMutation = useAuthorizeArbiter();
   const [isPaused, setIsPaused] = useState(false);
   const [loading, setLoading] = useState(true);
   const [contractOwner, setContractOwner] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionType, setActionType] = useState<
-    "pause" | "unpause" | "withdraw" | null
+    "pause" | "unpause" | "withdraw" | "authorizeArbiter" | null
   >(null);
   const [withdrawData, setWithdrawData] = useState({
     token: "", // Stellar: use empty string for native XLM, or contract address for tokens
     amount: "",
   });
+  const [arbiterAddress, setArbiterAddress] = useState("");
   const [testMode, setTestMode] = useState(false);
   const [contractStats, setContractStats] = useState({
     platformFeeBP: 0,
@@ -72,9 +85,9 @@ export default function AdminPage() {
       // Get owner from contract
       const contract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
       if (contract) {
-      const owner = await contract.owner();
+        const owner = await contract.owner();
         if (owner) {
-      setContractOwner(owner);
+          setContractOwner(owner);
         } else {
           // Fallback to env variable
           const ownerFromEnv = import.meta.env.VITE_OWNER_ADDRESS;
@@ -252,6 +265,24 @@ export default function AdminPage() {
             variant: "destructive",
           });
           break;
+
+        case "authorizeArbiter":
+          if (!arbiterAddress || !arbiterAddress.trim()) {
+            toast({
+              title: "Invalid Address",
+              description: "Please enter a valid arbiter address",
+              variant: "destructive",
+            });
+            setDialogOpen(false);
+            return;
+          }
+
+          // Use the mutation hook which already has toast notifications
+          await authorizeArbiterMutation.mutateAsync(arbiterAddress.trim());
+          setArbiterAddress("");
+          // Reload page to refresh all data
+          window.location.reload();
+          break;
       }
 
       // Only close dialog if action completed successfully
@@ -304,6 +335,18 @@ export default function AdminPage() {
           confirmText: testMode ? "Simulate Withdraw" : "Withdraw Tokens",
           variant: "destructive" as const,
         };
+      case "authorizeArbiter":
+        return {
+          title: `${testModePrefix}Authorize Arbiter${testModeSuffix}`,
+          description: testMode
+            ? "This will simulate authorizing an arbiter. No real transaction will be sent."
+            : "Authorize an arbiter address. Authorized arbiters can resolve disputes in escrows.",
+          icon: Shield,
+          confirmText: testMode
+            ? "Simulate Authorization"
+            : "Authorize Arbiter",
+          variant: "default" as const,
+        };
       default:
         return {
           title: "",
@@ -351,7 +394,7 @@ export default function AdminPage() {
           <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
           <p className="text-muted-foreground mb-6">
             You do not have permission to access this page. Only the contract
-            owner can access admin controls.
+            owner or authorized arbiters can access admin controls.
           </p>
           <div className="mt-6 p-4 bg-muted/50 rounded-lg text-left space-y-2">
             <p className="text-xs text-muted-foreground">
@@ -368,11 +411,8 @@ export default function AdminPage() {
             )}
             <p className="text-xs text-amber-600 mt-4">
               💡 <span className="font-semibold">Tip:</span> Make sure you're
-              connected with the wallet that deployed the SecureFlow contract.
-              {/* Update the owner address in{" "} */}
-              {/* <code className="bg-muted px-1 rounded">
-                contexts/web3-context.tsx
-              </code> */}
+              connected with the wallet that deployed the SecureFlow contract or
+              an authorized arbiter.
             </p>
           </div>
         </Card>
@@ -536,87 +576,178 @@ export default function AdminPage() {
             </div>
           </Card>
 
-          <DisputeResolution onDisputeResolved={fetchContractStats} />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <Card className="glass border-primary/20 p-6">
-              <div className="flex items-start gap-4 mb-4">
-                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
-                  {isPaused ? (
-                    <Play className="h-6 w-6 text-primary" />
-                  ) : (
-                    <Pause className="h-6 w-6 text-primary" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold mb-2">
-                    {isPaused ? "Unpause Contract" : "Pause Contract"}
-                  </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {isPaused
-                      ? "Resume all escrow operations and allow users to interact with the contract"
-                      : "Temporarily halt all escrow operations for maintenance or emergency situations"}
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() => openDialog(isPaused ? "unpause" : "pause")}
-                variant={isPaused ? "default" : "destructive"}
-                className="w-full gap-2"
-                disabled={
-                  actionLoading ||
-                  pauseJobCreation.isPending ||
-                  unpauseJobCreation.isPending ||
-                  loading
-                }
+          {/* Show role badge */}
+          <Card className="glass border-primary/20 p-4 mb-8">
+            <div className="flex items-center gap-3">
+              <Badge
+                variant={isOwner ? "default" : "secondary"}
+                className="gap-2"
               >
-                {actionLoading ||
-                pauseJobCreation.isPending ||
-                unpauseJobCreation.isPending ? (
+                {isOwner ? (
                   <>
-                    <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent" />
-                    Processing...
-                  </>
-                ) : isPaused ? (
-                  <>
-                    <Play className="h-4 w-4" />
-                    Unpause Contract
+                    <Shield className="h-3 w-3" />
+                    Contract Owner
                   </>
                 ) : (
                   <>
-                    <Pause className="h-4 w-4" />
-                    Pause Contract
+                    <Scale className="h-3 w-3" />
+                    Authorized Arbiter
                   </>
                 )}
-              </Button>
-            </Card>
+              </Badge>
+              {isArbiter && !isOwner && (
+                <p className="text-sm text-muted-foreground">
+                  You have access to dispute resolution only. Contact the
+                  contract owner for full admin access.
+                </p>
+              )}
+            </div>
+          </Card>
 
-            <Card className="glass border-primary/20 p-6">
-              <div className="flex items-start gap-4 mb-4">
-                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-destructive/10">
-                  <Download className="h-6 w-6 text-destructive" />
+          {/* Dispute Resolution - Available to both owners and arbiters */}
+          <DisputeResolution onDisputeResolved={fetchContractStats} />
+
+          {/* Owner-only sections */}
+          {isOwner && (
+            <>
+              {/* Arbiter Authorization Section */}
+              <Card className="glass border-primary/20 p-6 mb-8">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
+                    <User className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold mb-2">
+                      Arbiter Management
+                    </h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+                      Authorize arbiter addresses. Only authorized arbiters can
+                      resolve disputes in escrows.
+                    </p>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="arbiter-address">Arbiter Address</Label>
+                        <Input
+                          id="arbiter-address"
+                          placeholder="G..."
+                          value={arbiterAddress}
+                          onChange={(e) => setArbiterAddress(e.target.value)}
+                          className="font-mono"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter a Stellar address (starts with G) to authorize
+                          as an arbiter
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => openDialog("authorizeArbiter")}
+                        variant="default"
+                        className="w-full gap-2"
+                        disabled={
+                          actionLoading ||
+                          authorizeArbiterMutation.isPending ||
+                          !arbiterAddress.trim()
+                        }
+                      >
+                        {actionLoading || authorizeArbiterMutation.isPending ? (
+                          <>
+                            <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <Shield className="h-4 w-4" />
+                            Authorize Arbiter
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold mb-2">
-                    Withdraw Stuck Tokens
-                  </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    Emergency function to withdraw tokens that may be stuck in
-                    the contract
-                  </p>
-                </div>
+              </Card>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <Card className="glass border-primary/20 p-6">
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
+                      {isPaused ? (
+                        <Play className="h-6 w-6 text-primary" />
+                      ) : (
+                        <Pause className="h-6 w-6 text-primary" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold mb-2">
+                        {isPaused ? "Unpause Contract" : "Pause Contract"}
+                      </h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {isPaused
+                          ? "Resume all escrow operations and allow users to interact with the contract"
+                          : "Temporarily halt all escrow operations for maintenance or emergency situations"}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => openDialog(isPaused ? "unpause" : "pause")}
+                    variant={isPaused ? "default" : "destructive"}
+                    className="w-full gap-2"
+                    disabled={
+                      actionLoading ||
+                      pauseJobCreation.isPending ||
+                      unpauseJobCreation.isPending ||
+                      loading
+                    }
+                  >
+                    {actionLoading ||
+                    pauseJobCreation.isPending ||
+                    unpauseJobCreation.isPending ? (
+                      <>
+                        <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent" />
+                        Processing...
+                      </>
+                    ) : isPaused ? (
+                      <>
+                        <Play className="h-4 w-4" />
+                        Unpause Contract
+                      </>
+                    ) : (
+                      <>
+                        <Pause className="h-4 w-4" />
+                        Pause Contract
+                      </>
+                    )}
+                  </Button>
+                </Card>
+
+                <Card className="glass border-primary/20 p-6">
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="flex items-center justify-center w-12 h-12 rounded-full bg-destructive/10">
+                      <Download className="h-6 w-6 text-destructive" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold mb-2">
+                        Withdraw Stuck Tokens
+                      </h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Emergency function to withdraw tokens that may be stuck
+                        in the contract
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => openDialog("withdraw")}
+                    variant="destructive"
+                    className="w-full gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Withdraw Tokens
+                  </Button>
+                </Card>
               </div>
-              <Button
-                onClick={() => openDialog("withdraw")}
-                variant="destructive"
-                className="w-full gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Withdraw Tokens
-              </Button>
-            </Card>
-          </div>
+            </>
+          )}
 
+          {/* Contract Information - Available to both owners and arbiters */}
           <Card className="glass border-primary/20 p-6">
             <h2 className="text-2xl font-bold mb-6">Contract Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -740,7 +871,7 @@ export default function AdminPage() {
                 <Label htmlFor="token">Token Address</Label>
                 <Input
                   id="token"
-                  placeholder="0x..."
+                  placeholder="G..."
                   value={withdrawData.token}
                   onChange={(e) =>
                     setWithdrawData({ ...withdrawData, token: e.target.value })
@@ -759,6 +890,25 @@ export default function AdminPage() {
                     setWithdrawData({ ...withdrawData, amount: e.target.value })
                   }
                 />
+              </div>
+            </div>
+          )}
+
+          {actionType === "authorizeArbiter" && (
+            <div className="space-y-4 my-4">
+              <div className="space-y-2">
+                <Label htmlFor="arbiter-address-dialog">Arbiter Address</Label>
+                <Input
+                  id="arbiter-address-dialog"
+                  placeholder="G..."
+                  value={arbiterAddress}
+                  onChange={(e) => setArbiterAddress(e.target.value)}
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter a Stellar address (starts with G) to authorize as an
+                  arbiter
+                </p>
               </div>
             </div>
           )}
@@ -795,12 +945,15 @@ export default function AdminPage() {
               disabled={
                 actionLoading ||
                 pauseJobCreation.isPending ||
-                unpauseJobCreation.isPending
+                unpauseJobCreation.isPending ||
+                authorizeArbiterMutation.isPending ||
+                (actionType === "authorizeArbiter" && !arbiterAddress.trim())
               }
             >
               {actionLoading ||
               pauseJobCreation.isPending ||
-              unpauseJobCreation.isPending ? (
+              unpauseJobCreation.isPending ||
+              authorizeArbiterMutation.isPending ? (
                 <>
                   <div className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-r-transparent mr-2" />
                   Processing...

@@ -3610,6 +3610,56 @@ export class ContractService {
   }
 
   /**
+   * Check if an address is an authorized arbiter
+   */
+  async isAuthorizedArbiter(arbiterAddress: string): Promise<boolean> {
+    try {
+      const contract = new Contract(this.contractId);
+      const sourceAddress =
+        useWalletStore.getState().address ||
+        "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+      const sourceAccount = {
+        accountId: () => sourceAddress,
+        sequenceNumber: () => "0",
+        incrementSequenceNumber: () => {},
+      } as any;
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          contract.call(
+            "is_authorized_arbiter",
+            nativeToScVal(arbiterAddress, { type: "address" })
+          )
+        )
+        .setTimeout(30)
+        .build();
+
+      const simulation = await this.rpcServer.simulateTransaction(tx);
+
+      if ("errorResult" in simulation && simulation.errorResult) {
+        console.warn("[isAuthorizedArbiter] Error:", simulation.errorResult);
+        return false;
+      }
+
+      if ("result" in simulation && simulation.result) {
+        const retval = (simulation.result as any).retval;
+        if (retval) {
+          const isAuthorized = scValToNative(retval as xdr.ScVal) as boolean;
+          return isAuthorized;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error("[isAuthorizedArbiter] Error:", error);
+      return false;
+    }
+  }
+
+  /**
    * Helper function to handle auth entries and send transaction
    */
   private async sendTransactionWithAuth(

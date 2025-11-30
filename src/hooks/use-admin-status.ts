@@ -2,16 +2,21 @@ import { useState, useEffect } from "react";
 import { useWeb3 } from "@/contexts/web3-context";
 import { useDelegation } from "@/contexts/delegation-context";
 import { CONTRACTS } from "@/lib/web3/config";
+import { contractService } from "@/lib/web3/contract-service";
 
 export function useAdminStatus() {
   const { wallet, getContract } = useWeb3();
   const { getActiveDelegations, delegations } = useDelegation();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [isArbiter, setIsArbiter] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!wallet.isConnected || !wallet.address) {
       setIsAdmin(false);
+      setIsOwner(false);
+      setIsArbiter(false);
       return;
     }
 
@@ -25,6 +30,8 @@ export function useAdminStatus() {
       if (!CONTRACTS.SECUREFLOW_ESCROW) {
         console.warn("SECUREFLOW_ESCROW contract address not set");
         setIsAdmin(false);
+        setIsOwner(false);
+        setIsArbiter(false);
         return;
       }
 
@@ -32,6 +39,8 @@ export function useAdminStatus() {
       if (!contract) {
         console.warn("Failed to get contract instance");
         setIsAdmin(false);
+        setIsOwner(false);
+        setIsArbiter(false);
         return;
       }
 
@@ -43,6 +52,8 @@ export function useAdminStatus() {
       if (!owner) {
         console.warn("Owner not found in contract");
         setIsAdmin(false);
+        setIsOwner(false);
+        setIsArbiter(false);
         return;
       }
 
@@ -54,8 +65,23 @@ export function useAdminStatus() {
       console.log("Wallet (normalized):", walletStr);
 
       // Check if current wallet is the owner
-      const isOwner = ownerStr === walletStr;
-      console.log("Is owner:", isOwner);
+      const ownerCheck = ownerStr === walletStr;
+      setIsOwner(ownerCheck);
+      console.log("Is owner:", ownerCheck);
+
+      // Check if user is an authorized arbiter
+      let arbiterCheck = false;
+      if (wallet.address) {
+        try {
+          arbiterCheck = await contractService.isAuthorizedArbiter(
+            wallet.address
+          );
+          console.log("Is arbiter:", arbiterCheck);
+        } catch (error) {
+          console.error("Error checking arbiter status:", error);
+        }
+      }
+      setIsArbiter(arbiterCheck);
 
       // Also check if user has an active delegation granted TO their address
       const activeDelegations = getActiveDelegations();
@@ -64,14 +90,17 @@ export function useAdminStatus() {
       );
       console.log("Has delegation:", hasDelegationForUser);
 
-      setIsAdmin(isOwner || hasDelegationForUser);
+      // User is admin if they are owner, arbiter, or have delegation
+      setIsAdmin(ownerCheck || arbiterCheck || hasDelegationForUser);
     } catch (error) {
       console.error("Error checking admin status:", error);
       setIsAdmin(false);
+      setIsOwner(false);
+      setIsArbiter(false);
     } finally {
       setLoading(false);
     }
   };
 
-  return { isAdmin, loading };
+  return { isAdmin, isOwner, isArbiter, loading };
 }

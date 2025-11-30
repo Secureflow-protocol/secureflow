@@ -1,5 +1,6 @@
 import { Routes, Route, Outlet } from "react-router-dom";
 import { Navbar } from "./components/navbar";
+import { Toaster } from "./components/ui/toaster";
 import HomePage from "./pages/HomePage";
 import JobsPage from "./pages/JobsPage";
 import CreatePage from "./pages/CreatePage";
@@ -15,6 +16,7 @@ const AppLayout = () => (
     <div className="pt-16">
       <Outlet />
     </div>
+    <Toaster />
   </>
 );
 
