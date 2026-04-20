@@ -40,7 +40,7 @@ import { RefreshCw } from "lucide-react";
 export default function DashboardPage() {
   const { wallet, getContract } = useWeb3();
   const { toast } = useToast();
-  const { addCrossWalletNotification } = useNotifications();
+  const { addNotification } = useNotifications();
   const [escrows, setEscrows] = useState<Escrow[]>([]);
   const escrowsRef = useRef<Escrow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -707,20 +707,25 @@ export default function DashboardPage() {
 
       // Get freelancer address from escrow data
       const escrow = escrows.find((e) => e.id === escrowId);
-      const freelancerAddress = escrow?.beneficiary;
+      const payer = escrow?.payer;
+      const beneficiary = escrow?.beneficiary;
+      const current = wallet.address?.toLowerCase();
+      const otherParty =
+        current && payer?.toLowerCase() === current ? beneficiary : payer;
 
-      // Add cross-wallet notification for work started
-      addCrossWalletNotification(
-        createEscrowNotification("work_started", escrowId, {
-          projectTitle:
-            escrows.find((e) => e.id === escrowId)?.projectDescription ||
-            `Project #${escrowId}`,
-          freelancerName:
-            wallet.address!.slice(0, 6) + "..." + wallet.address!.slice(-4),
-        }),
-        wallet.address || undefined, // Client address
-        freelancerAddress // Freelancer address
-      );
+      // Notify the *other party* only (no self-notifications).
+      if (otherParty) {
+        addNotification(
+          createEscrowNotification("work_started", escrowId, {
+            projectTitle:
+              escrows.find((e) => e.id === escrowId)?.projectDescription ||
+              `Project #${escrowId}`,
+            freelancerName:
+              wallet.address!.slice(0, 6) + "..." + wallet.address!.slice(-4),
+          }),
+          [otherParty],
+        );
+      }
 
       // Wait a moment for blockchain state to update
       await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -826,16 +831,17 @@ export default function DashboardPage() {
       // Get freelancer address from escrow data
       const freelancerAddress = escrow.beneficiary;
 
-      // Add cross-wallet notification for milestone approval
-      addCrossWalletNotification(
-        createMilestoneNotification("approved", escrowId, milestoneIndex, {
-          clientName:
-            wallet.address.slice(0, 6) + "..." + wallet.address.slice(-4),
-          projectTitle: escrow.projectDescription || `Project #${escrowId}`,
-        }),
-        wallet.address || undefined, // Client address
-        freelancerAddress // Freelancer address
-      );
+      // Notify freelancer only (no self-notifications).
+      if (freelancerAddress) {
+        addNotification(
+          createMilestoneNotification("approved", escrowId, milestoneIndex, {
+            clientName:
+              wallet.address.slice(0, 6) + "..." + wallet.address.slice(-4),
+            projectTitle: escrow.projectDescription || `Project #${escrowId}`,
+          }),
+          [freelancerAddress],
+        );
+      }
 
       // Wait a moment for blockchain state to update
       await new Promise((resolve) => setTimeout(resolve, 3000));

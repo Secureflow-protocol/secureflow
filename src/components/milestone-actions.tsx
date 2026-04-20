@@ -225,6 +225,47 @@ export function MilestoneActions({
           title: message.title,
           description: message.description,
         });
+
+        // Emit global events so pages can refresh immediately after on-chain actions.
+        // This avoids stale UI (especially with long staleTimes / manual fetch pages).
+        window.dispatchEvent(
+          new CustomEvent("escrowUpdated", {
+            detail: {
+              escrowId: Number(escrowId),
+              milestoneIndex,
+              action: actionType,
+            },
+          }),
+        );
+        if (actionType === "start") {
+          window.dispatchEvent(
+            new CustomEvent("workStarted", {
+              detail: { escrowId: Number(escrowId) },
+            }),
+          );
+        }
+        if (actionType === "submit" || actionType === "resubmit") {
+          window.dispatchEvent(
+            new CustomEvent("milestoneSubmitted", {
+              detail: { escrowId: Number(escrowId), milestoneIndex },
+            }),
+          );
+        }
+        if (actionType === "approve") {
+          window.dispatchEvent(
+            new CustomEvent("milestoneApproved", {
+              detail: { escrowId: Number(escrowId), milestoneIndex },
+            }),
+          );
+        }
+        if (actionType === "reject") {
+          window.dispatchEvent(
+            new CustomEvent("milestoneRejected", {
+              detail: { escrowId: Number(escrowId), milestoneIndex },
+            }),
+          );
+        }
+
         setDialogOpen(false);
         onSuccess();
       }

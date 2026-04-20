@@ -145,13 +145,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       read: false,
     };
 
-    // Always add to current user's notifications
-    setNotifications((prev) => [newNotification, ...prev]);
+    const targets = (targetAddresses ?? [])
+      .filter(Boolean)
+      .map((a) => a.toLowerCase());
+    const current = wallet.address?.toLowerCase();
+    const shouldNotifyCurrent =
+      targets.length === 0 || (current ? targets.includes(current) : false);
+
+    // Only add to current user's notifications when no explicit targets were provided
+    // (or when the caller explicitly included the current wallet as a target).
+    if (shouldNotifyCurrent) {
+      setNotifications((prev) => [newNotification, ...prev]);
+    }
 
     // If target addresses are specified, also store for those addresses (cross-wallet notifications)
-    if (targetAddresses && targetAddresses.length > 0) {
-      targetAddresses.forEach((address) => {
-        if (address && address !== wallet.address) {
+    if (targets.length > 0) {
+      targets.forEach((address) => {
+        if (address && address !== current) {
           const existingNotifications = JSON.parse(
             localStorage.getItem(`notifications_${address}`) || "[]",
           );
@@ -168,7 +178,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
 
     // Show toast for important notifications
-    if (notification.type === "milestone" || notification.type === "dispute") {
+    if (
+      shouldNotifyCurrent &&
+      (notification.type === "milestone" || notification.type === "dispute")
+    ) {
       toast({
         title: notification.title,
         description: notification.message,
@@ -222,8 +235,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       read: false,
     };
 
-    // Always add to current user's notifications
-    setNotifications((prev) => [newNotification, ...prev]);
+    const current = wallet.address?.toLowerCase();
 
     // Collect all target addresses (both client and freelancer)
     const targetAddresses = [];
@@ -240,6 +252,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       targetAddresses.push(freelancerAddress.toLowerCase());
     }
 
+    // Only add to current wallet if it was explicitly provided as a target.
+    if (
+      current &&
+      ((clientAddress && clientAddress.toLowerCase() === current) ||
+        (freelancerAddress && freelancerAddress.toLowerCase() === current))
+    ) {
+      setNotifications((prev) => [newNotification, ...prev]);
+    }
+
     // Send to all target addresses
     targetAddresses.forEach((address) => {
       const existingNotifications = JSON.parse(
@@ -253,7 +274,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
 
     // Show toast for important notifications
-    if (notification.type === "milestone" || notification.type === "dispute") {
+    if (
+      current &&
+      ((clientAddress && clientAddress.toLowerCase() === current) ||
+        (freelancerAddress && freelancerAddress.toLowerCase() === current)) &&
+      (notification.type === "milestone" || notification.type === "dispute")
+    ) {
       toast({
         title: notification.title,
         description: notification.message,

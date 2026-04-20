@@ -91,7 +91,7 @@ interface Milestone {
 
 export default function FreelancerPage() {
   const { wallet, getContract } = useWeb3();
-  const { addNotification, addCrossWalletNotification } = useNotifications();
+  const { addNotification } = useNotifications();
   // Stellar doesn't use smart accounts
   // const { executeTransaction, isSmartAccountReady } = useSmartAccount();
   const [escrows, setEscrows] = useState<Escrow[]>([]);
@@ -542,18 +542,19 @@ export default function FreelancerPage() {
       const escrow = escrows.find((e) => e.id === escrowId);
       const clientAddress = escrow?.payer;
 
-      // Add cross-wallet notification for work started
-      addCrossWalletNotification(
-        createEscrowNotification("work_started", escrowId, {
-          projectTitle:
-            escrows.find((e) => e.id === escrowId)?.projectTitle ||
-            `Project #${escrowId}`,
-          freelancerName:
-            wallet.address!.slice(0, 6) + "..." + wallet.address!.slice(-4),
-        }),
-        clientAddress, // Client address
-        wallet.address || undefined // Freelancer address
-      );
+      // Notify the client only (no self-notifications).
+      if (clientAddress) {
+        addNotification(
+          createEscrowNotification("work_started", escrowId, {
+            projectTitle:
+              escrows.find((e) => e.id === escrowId)?.projectTitle ||
+              `Project #${escrowId}`,
+            freelancerName:
+              wallet.address!.slice(0, 6) + "..." + wallet.address!.slice(-4),
+          }),
+          [clientAddress],
+        );
+      }
 
       // Wait a moment for blockchain state to update
       await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -802,16 +803,17 @@ export default function FreelancerPage() {
       const escrow = escrows.find((e) => e.id === escrowId);
       const clientAddress = escrow?.payer;
 
-      // Add cross-wallet notification for milestone submission
-      addCrossWalletNotification(
-        createMilestoneNotification("submitted", escrowId, milestoneIndex, {
-          freelancerName:
-            wallet.address!.slice(0, 6) + "..." + wallet.address!.slice(-4),
-          projectTitle: escrow?.projectTitle || `Project #${escrowId}`,
-        }),
-        clientAddress, // Client address
-        wallet.address || undefined // Freelancer address
-      );
+      // Notify the client only (no self-notifications).
+      if (clientAddress) {
+        addNotification(
+          createMilestoneNotification("submitted", escrowId, milestoneIndex, {
+            freelancerName:
+              wallet.address!.slice(0, 6) + "..." + wallet.address!.slice(-4),
+            projectTitle: escrow?.projectTitle || `Project #${escrowId}`,
+          }),
+          [clientAddress],
+        );
+      }
 
       // Mark this milestone as submitted to prevent double submission
       const milestoneKey = `${escrowId}-${milestoneIndex}`;

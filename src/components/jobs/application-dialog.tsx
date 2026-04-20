@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,6 +35,14 @@ export function ApplicationDialog({
   const [coverLetter, setCoverLetter] = useState("");
   const [proposedTimeline, setProposedTimeline] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+
+  // Keep user input until the dialog actually closes (e.g. after a successful tx).
+  useEffect(() => {
+    if (!open) {
+      setCoverLetter("");
+      setProposedTimeline("");
+    }
+  }, [open]);
 
   const draftWithAi = async () => {
     if (!job) return;
@@ -76,17 +84,15 @@ export function ApplicationDialog({
   const handleSubmit = () => {
     if (job && coverLetter.trim() && proposedTimeline.trim()) {
       onApply(job, coverLetter, proposedTimeline);
-      setCoverLetter("");
-      setProposedTimeline("");
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="glass w-[min(92vw,56rem)] max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>
-            Apply to {job?.projectDescription || `Job #${job?.id || "Unknown"}`}
+      <DialogContent className="glass w-[min(92vw,56rem)] max-w-4xl p-7">
+        <DialogHeader className="space-y-2">
+          <DialogTitle className="leading-snug">
+            Apply to {job?.projectTitle?.trim() || `Job #${job?.id || "Unknown"}`}
           </DialogTitle>
           <DialogDescription>
             Submit your application for this freelance opportunity.
