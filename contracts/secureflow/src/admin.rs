@@ -1,7 +1,15 @@
-use crate::storage_types::{DataKey, SecureFlowError, INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
-use soroban_sdk::{Address, Env, Error};
+use crate::storage_types::{
+    DataKey, SecureFlowError, INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD,
+};
+use soroban_sdk::{token, Address, Env, Error, Vec};
 
-pub fn initialize(env: &Env, owner: Address, fee_collector: Address, platform_fee_bp: u32) -> Result<(), Error> {
+pub fn initialize(
+    env: &Env,
+    owner: Address,
+    fee_collector: Address,
+    platform_fee_bp: u32,
+    default_whitelisted_tokens: Vec<Address>,
+) -> Result<(), Error> {
     // Check if already initialized
     if env.storage().instance().has(&DataKey::Owner) {
         return Err(Error::from_contract_error(SecureFlowError::AlreadyInitialized as u32));
@@ -30,6 +38,22 @@ pub fn initialize(env: &Env, owner: Address, fee_collector: Address, platform_fe
     env.storage()
         .instance()
         .set(&DataKey::JobCreationPaused, &false);
+
+    // Initialize lists
+    env.storage()
+        .instance()
+        .set(&DataKey::WhitelistedTokens, &Vec::<Address>::new(env));
+    env.storage()
+        .instance()
+        .set(&DataKey::AuthorizedArbiters, &Vec::<Address>::new(env));
+
+    // Default whitelisted tokens (e.g., USDC on Stellar)
+    for t in default_whitelisted_tokens.iter() {
+        env.storage()
+            .instance()
+            .set(&DataKey::WhitelistedToken(t.clone()), &true);
+        add_to_list_unique(env, DataKey::WhitelistedTokens, t.clone());
+    }
     
     Ok(())
 }
@@ -93,6 +117,63 @@ pub fn set_owner(env: &Env, new_owner: Address) -> Result<(), Error> {
     env.storage()
         .instance()
         .set(&DataKey::Owner, &new_owner);
+    Ok(())
+}
+
+pub fn add_to_list_unique(env: &Env, key: DataKey, value: Address) {
+    let mut list: Vec<Address> = env.storage().instance().get(&key).unwrap_or(Vec::new(env));
+    let mut exists = false;
+    for item in list.iter() {
+        if item == value {
+            exists = true;
+            break;
+        }
+    }
+    if !exists {
+        list.push_back(value);
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+        env.storage().instance().set(&key, &list);
+    }
+}
+
+/// Owner-only: withdraw only the "excess" balance above what is currently escrowed.
+/// This protects active escrows while allowing recovery of accidental transfers.
+pub fn withdraw_stuck_funds(
+    env: &Env,
+    token_addr: Address,
+    to: Address,
+    amount: i128,
+) -> Result<(), Error> {
+    require_owner(env)?;
+
+    if amount <= 0 {
+        return Err(Error::from_contract_error(SecureFlowError::InvalidAmount as u32));
+    }
+
+    env.storage()
+        .instance()
+        .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
+
+    let escrowed: i128 = env
+        .storage()
+        .instance()
+        .get(&DataKey::EscrowedAmount(token_addr.clone()))
+        .unwrap_or(0);
+
+    // Read actual on-chain token balance for this contract
+    let token_client = token::Client::new(env, &token_addr);
+    let bal = token_client.balance(&env.current_contract_address());
+
+    let withdrawable = bal - escrowed;
+    if withdrawable <= 0 || amount > withdrawable {
+        return Err(Error::from_contract_error(
+            SecureFlowError::InsufficientWithdrawable as u32,
+        ));
+    }
+
+    token_client.transfer(&env.current_contract_address(), &to, &amount);
     Ok(())
 }
 

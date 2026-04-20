@@ -1,14 +1,46 @@
 
-
 import {
   createContext,
   use,
   useState,
   useEffect,
+  useCallback,
   type ReactNode,
 } from "react";
 import { useWeb3 } from "./web3-context";
 import { useToast } from "@/hooks/use-toast";
+import {
+  getNotifications,
+  isApiConfigured,
+  patchNotificationRead,
+  notificationIdIsRemote,
+  type RemoteNotificationRow,
+} from "@/lib/api";
+
+function mergeRemoteNotifications(
+  remote: RemoteNotificationRow[],
+  localState: Notification[],
+): Notification[] {
+  const fromRemote: Notification[] = remote.map((r) => ({
+    id: r.id,
+    type: r.type,
+    title: r.title,
+    message: r.message,
+    read: r.read,
+    timestamp: new Date(r.timestamp),
+    actionUrl: r.actionUrl,
+    data: r.data as Record<string, unknown> | undefined,
+  }));
+  const legacy = localState.filter((n) => n.id.startsWith("notification_"));
+  const byId = new Map<string, Notification>();
+  for (const n of fromRemote) byId.set(n.id, n);
+  for (const n of legacy) {
+    if (!byId.has(n.id)) byId.set(n.id, n);
+  }
+  return Array.from(byId.values()).sort(
+    (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+  );
+}
 
 export interface Notification {
   id: string;
@@ -72,15 +104,35 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   }, [wallet.isConnected, wallet.address]);
 
-  // Save notifications to localStorage when they change
+  // Persist only locally-generated rows; server-backed rows load from the API
   useEffect(() => {
     if (wallet.isConnected && wallet.address) {
+      const legacy = notifications.filter((n) =>
+        n.id.startsWith("notification_"),
+      );
       localStorage.setItem(
         `notifications_${wallet.address}`,
-        JSON.stringify(notifications),
+        JSON.stringify(legacy),
       );
     }
   }, [notifications, wallet.isConnected, wallet.address]);
+
+  const syncRemoteNotifications = useCallback(async () => {
+    if (!wallet.address || !isApiConfigured()) return;
+    try {
+      const remote = await getNotifications(wallet.address);
+      setNotifications((prev) => mergeRemoteNotifications(remote, prev));
+    } catch {
+      /* offline or API down — keep local state */
+    }
+  }, [wallet.address]);
+
+  useEffect(() => {
+    if (!wallet.address || !isApiConfigured()) return;
+    void syncRemoteNotifications();
+    const t = window.setInterval(() => void syncRemoteNotifications(), 45_000);
+    return () => window.clearInterval(t);
+  }, [wallet.address, syncRemoteNotifications]);
 
   const addNotification = (
     notification: Omit<Notification, "id" | "timestamp" | "read">,
@@ -125,6 +177,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   };
 
   const markAsRead = (id: string) => {
+    if (wallet.address && notificationIdIsRemote(id)) {
+      void patchNotificationRead(wallet.address, id).catch(() => {});
+    }
     setNotifications((prev) =>
       prev.map((notification) =>
         notification.id === id ? { ...notification, read: true } : notification,
@@ -133,9 +188,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   };
 
   const markAllAsRead = () => {
-    setNotifications((prev) =>
-      prev.map((notification) => ({ ...notification, read: true })),
-    );
+    setNotifications((prev) => {
+      if (wallet.address && isApiConfigured()) {
+        for (const n of prev) {
+          if (!n.read && notificationIdIsRemote(n.id)) {
+            void patchNotificationRead(wallet.address, n.id).catch(() => {});
+          }
+        }
+      }
+      return prev.map((notification) => ({ ...notification, read: true }));
+    });
   };
 
   const clearNotifications = () => {

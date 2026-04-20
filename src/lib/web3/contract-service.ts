@@ -1854,6 +1854,79 @@ export class ContractService {
     }
   }
 
+  private async simulateReadonly(method: string, args: any[] = []): Promise<xdr.ScVal> {
+    this.syncFromConfig();
+    this.assertValidContractId();
+    const contract = new Contract(this.contractId);
+    const sourceAddress = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+    const sourceAccount = {
+      accountId: () => sourceAddress,
+      sequenceNumber: () => "0",
+      incrementSequenceNumber: () => {},
+    } as any;
+
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: "100",
+      networkPassphrase: this.network.networkPassphrase,
+    })
+      .addOperation((contract as any).call(method, ...args))
+      .setTimeout(30)
+      .build();
+
+    const simulation = await this.rpcServer.simulateTransaction(tx);
+    if ("errorResult" in simulation && (simulation as any).errorResult) {
+      const errorValue =
+        (simulation as any).errorResult?.value?.() || (simulation as any).errorResult;
+      throw new Error(`Contract ${method} failed: ${errorValue.toString()}`);
+    }
+
+    let retval: xdr.ScVal | null = null;
+    if ("result" in simulation && (simulation as any).result?.retval) {
+      retval = (simulation as any).result.retval as xdr.ScVal;
+    } else if ("returnValue" in simulation && (simulation as any).returnValue) {
+      retval = (simulation as any).returnValue as xdr.ScVal;
+    }
+    if (!retval) throw new Error(`No return value from ${method}`);
+    return retval;
+  }
+
+  async getPlatformFeeBP(): Promise<number> {
+    const rv = await this.simulateReadonly("get_platform_fee_bp");
+    const native = scValToNative(rv) as any;
+    return Number(native ?? 0);
+  }
+
+  async getFeeCollector(): Promise<string> {
+    const rv = await this.simulateReadonly("get_fee_collector");
+    return String(scValToNative(rv));
+  }
+
+  async getTotalEscrows(): Promise<number> {
+    try {
+      const rv = await this.simulateReadonly("get_total_escrows");
+      const native = scValToNative(rv) as any;
+      return Number(native ?? 0);
+    } catch {
+      // Backward compatibility for older deployments: infer from next_escrow_id
+      const next = await this.getNextEscrowId();
+      return Math.max(0, Number(next) - 1);
+    }
+  }
+
+  async getWhitelistedTokens(): Promise<string[]> {
+    const rv = await this.simulateReadonly("get_whitelisted_tokens");
+    const native = scValToNative(rv) as any;
+    if (!Array.isArray(native)) return [];
+    return native.map((a) => String(a));
+  }
+
+  async getAuthorizedArbiters(): Promise<string[]> {
+    const rv = await this.simulateReadonly("get_authorized_arbiters");
+    const native = scValToNative(rv) as any;
+    if (!Array.isArray(native)) return [];
+    return native.map((a) => String(a));
+  }
+
   /**
    * Write operations - build, sign, and send transactions
    */
@@ -2260,6 +2333,30 @@ export class ContractService {
       if (!txHash) {
         console.error("Transaction sent but no hash returned!", sendResponse);
         throw new Error("Transaction sent but no hash returned");
+      }
+
+      if (sendResponse.status === "ERROR") {
+        // Do NOT treat simulation as success if the real send failed
+        const anyResp = sendResponse as any;
+        const shortDetails =
+          anyResp?.errorResultXdr ||
+          anyResp?.errorResult ||
+          anyResp?.resultXdr ||
+          anyResp?.message ||
+          undefined;
+        const details = (() => {
+          if (typeof shortDetails === "string" && shortDetails.trim()) {
+            return shortDetails;
+          }
+          try {
+            return JSON.stringify(sendResponse);
+          } catch {
+            return String(sendResponse);
+          }
+        })();
+        throw new Error(
+          `Transaction failed (sendTransaction: ERROR). ${details}. Tx: https://stellar.expert/explorer/testnet/tx/${txHash}`,
+        );
       }
 
       if (sendResponse.status === "PENDING" && txHash) {
@@ -3884,6 +3981,60 @@ export class ContractService {
       return await this.sendTransactionWithAuth(assembledTx, walletAddress);
     } catch (error: any) {
       console.error("Error authorizing arbiter:", error);
+      throw error;
+    }
+  }
+
+  async withdrawStuckFunds(params: {
+    token: string;
+    to: string;
+    amount: string;
+  }): Promise<string> {
+    const { address } = useWalletStore.getState();
+    if (!address) {
+      throw new Error("Wallet not connected");
+    }
+    const walletAddress = address;
+
+    try {
+      const contract = new Contract(this.contractId);
+      const sourceAccount = await this.rpcServer.getAccount(walletAddress);
+
+      const tokenScVal = nativeToScVal(params.token, { type: "address" });
+      const toScVal = nativeToScVal(params.to, { type: "address" });
+      const amountScVal = nativeToScVal(params.amount, { type: "i128" });
+
+      const tx = new TransactionBuilder(sourceAccount, {
+        fee: "100",
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(
+          (contract as any).call("withdraw_stuck_funds", tokenScVal, toScVal, amountScVal),
+        )
+        .setTimeout(30)
+        .build();
+
+      const prepared = await this.rpcServer.prepareTransaction(tx);
+      const signedTxXdr = await signTransaction({
+        unsignedTransaction: prepared.toXDR(),
+        address: walletAddress,
+      });
+
+      const signedTransaction = TransactionBuilder.fromXDR(
+        signedTxXdr,
+        this.network.networkPassphrase,
+      );
+
+      const sendResponse = await this.rpcServer.sendTransaction(signedTransaction);
+      if (sendResponse.status === "ERROR") {
+        throw new Error("Transaction failed");
+      }
+      if (sendResponse.status === "PENDING" && sendResponse.hash) {
+        return await this.waitForConfirmation(sendResponse.hash);
+      }
+      return sendResponse.hash || "";
+    } catch (error: any) {
+      console.error("Error withdrawing stuck funds:", error);
       throw error;
     }
   }

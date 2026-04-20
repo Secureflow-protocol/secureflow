@@ -19,6 +19,9 @@ interface MilestonesStepProps {
   currentMilestoneIndex: number | null;
   onSetCurrentMilestoneIndex: (index: number | null) => void;
   totalBudget: string;
+  projectTitle: string;
+  projectDescription: string;
+  durationDays: string;
   errors?: {
     milestones?: string;
     totalMismatch?: string;
@@ -33,6 +36,9 @@ export function MilestonesStep({
   currentMilestoneIndex,
   onSetCurrentMilestoneIndex,
   totalBudget,
+  projectTitle,
+  projectDescription,
+  durationDays,
   errors = {},
 }: MilestonesStepProps) {
   const addMilestone = () => {
@@ -62,26 +68,14 @@ export function MilestonesStep({
   };
 
   return (
-    <Card className="glass border-primary/20 p-6">
-      <CardHeader>
-        <CardTitle>Milestones</CardTitle>
+    <Card className="glass border-primary/20 p-6 sm:p-7">
+      <CardHeader className="pb-4 space-y-0">
+        <CardTitle className="text-xl">Milestones</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {showAIWriter && (
-          <AIMilestoneWriter
-            onResult={handleAIWriterResult}
-            onClose={() => {
-              onToggleAIWriter(false);
-              onSetCurrentMilestoneIndex(null);
-            }}
-            currentMilestoneIndex={currentMilestoneIndex}
-            existingMilestones={milestones}
-          />
-        )}
-
+      <CardContent className="space-y-6 pt-0">
         {milestones.map((milestone, index) => (
           <div key={index} className="border border-border/40 rounded-lg p-5">
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-4">
               <h4 className="font-medium">Milestone {index + 1}</h4>
               <div className="flex gap-2">
                 <Button
@@ -109,11 +103,29 @@ export function MilestonesStep({
               </div>
             </div>
 
-            <div className="space-y-4">
+            {showAIWriter && currentMilestoneIndex === index && (
+              <div className="mb-5">
+                <AIMilestoneWriter
+                  onResult={handleAIWriterResult}
+                  onClose={() => {
+                    onToggleAIWriter(false);
+                    onSetCurrentMilestoneIndex(null);
+                  }}
+                  currentMilestoneIndex={currentMilestoneIndex}
+                  existingMilestones={milestones}
+                  projectTitle={projectTitle}
+                  projectDescription={projectDescription}
+                  totalBudget={totalBudget}
+                  durationDays={durationDays}
+                />
+              </div>
+            )}
+
+            <div className="space-y-5">
               <div>
                 <Label
                   htmlFor={`milestone-${index}-description`}
-                  className="mb-2 block"
+                  className="mb-2.5 block"
                 >
                   Description *
                 </Label>
@@ -124,7 +136,7 @@ export function MilestonesStep({
                     updateMilestone(index, "description", e.target.value)
                   }
                   placeholder="Describe what needs to be delivered..."
-                  className={`min-h-[80px] ${errors.milestones ? "border-red-500 focus:border-red-500" : ""}`}
+                  className={`min-h-[92px] leading-relaxed ${errors.milestones ? "border-red-500 focus:border-red-500" : ""}`}
                   required
                   minLength={10}
                 />
@@ -142,7 +154,7 @@ export function MilestonesStep({
               <div>
                 <Label
                   htmlFor={`milestone-${index}-amount`}
-                  className="mb-2 block"
+                  className="mb-2.5 block"
                 >
                   Amount (tokens) *
                 </Label>
@@ -208,7 +220,7 @@ export function MilestonesStep({
                 Target Total:
               </Label>
               <div className="text-2xl font-bold text-foreground">
-                {totalBudget || "0.00"}
+                {Number(totalBudget || 0).toFixed(2)}
               </div>
             </div>
           </div>

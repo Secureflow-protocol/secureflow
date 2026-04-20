@@ -3,7 +3,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { isApiConfigured, postRewriteText } from "@/lib/api";
+import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type WhitelistedToken = { symbol: string; address: string };
+
+const USDC_TOKEN_CONTRACT =
+  (import.meta.env.VITE_USDC_TOKEN_CONTRACT as string | undefined)?.trim() ??
+  "";
+
+// Whitelisted tokens (production: USDC only for now)
+export const WHITELISTED_TOKENS: WhitelistedToken[] = [
+  { symbol: "USDC", address: USDC_TOKEN_CONTRACT },
+].filter((t) => /^C[A-Z2-7]{55}$/.test(t.address));
 
 interface ProjectDetailsStepProps {
   formData: {
@@ -34,6 +56,40 @@ export function ProjectDetailsStep({
   isContractPaused,
   errors = {} as ProjectDetailsStepProps["errors"],
 }: ProjectDetailsStepProps) {
+  const { toast } = useToast();
+  const [rewriting, setRewriting] = useState(false);
+
+  const rewriteDescription = async () => {
+    const text = formData.projectDescription?.trim() ?? "";
+    if (!text) return;
+    if (!isApiConfigured()) {
+      toast({
+        title: "API not configured",
+        description: "Run the backend (npm run dev) for AI rewrite in local dev.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setRewriting(true);
+    try {
+      const { text: rewritten } = await postRewriteText({ text });
+      onUpdate({ projectDescription: rewritten });
+      toast({
+        title: "Improved",
+        description: "Grammar and clarity updated — review before submitting.",
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Rewrite failed";
+      toast({
+        title: "AI unavailable",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setRewriting(false);
+    }
+  };
+
   return (
     <Card className="glass border-primary/20 p-6">
       <CardHeader>
@@ -97,9 +153,26 @@ export function ProjectDetailsStep({
         </div>
 
         <div>
-          <Label htmlFor="projectDescription" className="mb-2 block">
-            Project Description *
-          </Label>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <Label htmlFor="projectDescription" className="block">
+              Project Description *
+            </Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => void rewriteDescription()}
+              disabled={
+                rewriting ||
+                !formData.projectDescription?.trim() ||
+                !!errors?.projectDescription
+              }
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {rewriting ? "Improving…" : "Improve with AI"}
+            </Button>
+          </div>
           <Textarea
             id="projectDescription"
             value={formData.projectDescription}
@@ -179,7 +252,7 @@ export function ProjectDetailsStep({
           </div>
         </div>
 
-        <div className="space-y-6 mt-4">
+        <div className="space-y-8 mt-4">
           <div className="flex items-center space-x-3">
             <input
               type="checkbox"
@@ -188,37 +261,44 @@ export function ProjectDetailsStep({
               onChange={(e) => onUpdate({ useNativeToken: e.target.checked })}
               className="rounded w-4 h-4"
             />
-            <Label htmlFor="useNativeToken" className="cursor-pointer">
+            <Label htmlFor="useNativeToken" className="cursor-pointer ml-1">
               Use Native Token (XLM)
             </Label>
           </div>
 
           {!formData.useNativeToken && (
-            <div>
-              <Label htmlFor="tokenAddress" className="mb-2 block">
-                Token Address *
-              </Label>
-              <Input
-                id="tokenAddress"
-                value={formData.token}
-                onChange={(e) => onUpdate({ token: e.target.value })}
-                placeholder="C..."
-                required={!formData.useNativeToken}
-                pattern="^C[A-Z0-9]{55}$"
-                className={
-                  errors?.tokenAddress
-                    ? "border-red-500 focus:border-red-500"
-                    : ""
-                }
-              />
+            <div className="space-y-2">
+              <div className="flex items-center gap-4">
+                <Label htmlFor="tokenAddress" className="shrink-0">
+                  Whitelisted Token *
+                </Label>
+                <div className="flex-1">
+                  <Select
+                    value={formData.token}
+                    onValueChange={(val) => onUpdate({ token: val })}
+                    disabled={WHITELISTED_TOKENS.length === 0}
+                  >
+                    <SelectTrigger
+                      id="tokenAddress"
+                      className={`w-full ${errors?.tokenAddress ? "border-red-500 focus:ring-red-500" : ""}`}
+                    >
+                      <SelectValue placeholder="Select a token" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WHITELISTED_TOKENS.map((t) => (
+                        <SelectItem key={t.symbol} value={t.address}>
+                          {t.symbol}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               {errors?.tokenAddress ? (
-                <p className="text-red-500 text-sm mt-1">
-                  {errors.tokenAddress}
-                </p>
+                <p className="text-red-500 text-sm">{errors.tokenAddress}</p>
               ) : (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Enter the contract address of your Soroban token deployed on
-                  Stellar Testnet. Default: Native XLM token
+                <p className="text-xs text-muted-foreground">
+                  USDC only for now. Set `VITE_USDC_TOKEN_CONTRACT` in `.env`.
                 </p>
               )}
             </div>
@@ -232,7 +312,7 @@ export function ProjectDetailsStep({
               onChange={(e) => onUpdate({ isOpenJob: e.target.checked })}
               className="rounded w-4 h-4"
             />
-            <Label htmlFor="isOpenJob" className="cursor-pointer">
+            <Label htmlFor="isOpenJob" className="cursor-pointer ml-1">
               Open Job (Allow Applications)
             </Label>
           </div>

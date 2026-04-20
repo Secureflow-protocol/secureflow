@@ -24,8 +24,15 @@ impl SecureFlow {
         owner: Address,
         fee_collector: Address,
         platform_fee_bp: u32,
+        default_whitelisted_tokens: Vec<Address>,
     ) -> Result<(), Error> {
-        admin::initialize(&env, owner, fee_collector, platform_fee_bp)
+        admin::initialize(
+            &env,
+            owner,
+            fee_collector,
+            platform_fee_bp,
+            default_whitelisted_tokens,
+        )
     }
 
     /// Create an escrow with token
@@ -187,6 +194,7 @@ impl SecureFlow {
         env.storage()
             .instance()
             .set(&DataKey::WhitelistedToken(token.clone()), &true);
+        admin::add_to_list_unique(&env, DataKey::WhitelistedTokens, token);
         Ok(())
     }
 
@@ -198,7 +206,18 @@ impl SecureFlow {
         env.storage()
             .instance()
             .set(&DataKey::AuthorizedArbiter(arbiter.clone()), &true);
+        admin::add_to_list_unique(&env, DataKey::AuthorizedArbiters, arbiter);
         Ok(())
+    }
+
+    /// Owner-only: withdraw stuck funds (excess above escrowed amounts) for a given token contract.
+    pub fn withdraw_stuck_funds(
+        env: Env,
+        token: Address,
+        to: Address,
+        amount: i128,
+    ) -> Result<(), Error> {
+        admin::withdraw_stuck_funds(&env, token, to, amount)
     }
 
     /// Pause job creation
@@ -219,6 +238,35 @@ impl SecureFlow {
     /// Get the contract owner
     pub fn get_owner(env: Env) -> Result<Address, Error> {
         admin::get_owner(&env)
+    }
+
+    pub fn get_platform_fee_bp(env: Env) -> u32 {
+        admin::get_platform_fee_bp(&env)
+    }
+
+    pub fn get_fee_collector(env: Env) -> Result<Address, Error> {
+        admin::get_fee_collector(&env)
+    }
+
+    pub fn get_total_escrows(env: Env) -> u32 {
+        let next: u32 = env.storage().instance().get(&DataKey::NextEscrowId).unwrap_or(1u32);
+        if next == 0 { 0 } else { next.saturating_sub(1) }
+    }
+
+    pub fn get_whitelisted_tokens(env: Env) -> Vec<Address> {
+        env.storage().instance().get(&DataKey::WhitelistedTokens).unwrap_or(Vec::new(&env))
+    }
+
+    pub fn is_token_whitelisted(env: Env, token: Option<Address>) -> bool {
+        escrow_core::is_whitelisted_token(&env, token)
+    }
+
+    pub fn get_authorized_arbiters(env: Env) -> Vec<Address> {
+        env.storage().instance().get(&DataKey::AuthorizedArbiters).unwrap_or(Vec::new(&env))
+    }
+
+    pub fn is_authorized_arbiter(env: Env, arbiter: Address) -> bool {
+        escrow_core::is_authorized_arbiter(&env, arbiter)
     }
 
     /// Check if a freelancer has applied to a job
@@ -277,9 +325,6 @@ impl SecureFlow {
         ratings::get_completed_escrows(&env, user)
     }
 
-    /// Check if an address is an authorized arbiter
-    pub fn is_authorized_arbiter(env: Env, arbiter: Address) -> bool {
-        escrow_core::is_authorized_arbiter(&env, arbiter)
-    }
+    // (moved earlier) is_authorized_arbiter is defined above with other admin views
 }
 

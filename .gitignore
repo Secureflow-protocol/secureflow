@@ -39,6 +39,8 @@ lerna-debug.log*
 .env
 .env.*
 !.env.template
+# Backend API local secrets (also matched by `.env` above; do not use backend/.env.* — would hide .env.example)
+backend/.env
 
 # easy way to create temporary local-only files and folders
 *.local.*

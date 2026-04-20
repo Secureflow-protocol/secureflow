@@ -15,11 +15,18 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Check if WASM file exists
+# Check if WASM file exists (Cargo often puts it under release/deps/)
 WASM_FILE="target/wasm32-unknown-unknown/release/secureflow.wasm"
-if [ ! -f "$WASM_FILE" ]; then
+WASM_FILE_DEPS="target/wasm32-unknown-unknown/release/deps/secureflow.wasm"
+
+if [ ! -f "$WASM_FILE" ] && [ ! -f "$WASM_FILE_DEPS" ]; then
     echo -e "${RED}❌ WASM file not found. Building contract...${NC}"
-    cargo build --target wasm32-unknown-unknown --release
+    cargo build -p secureflow --target wasm32-unknown-unknown --release
+fi
+
+# Prefer the deps wasm if present (it is the real cdylib artifact)
+if [ -f "$WASM_FILE_DEPS" ]; then
+    WASM_FILE="$WASM_FILE_DEPS"
 fi
 
 echo -e "${GREEN}✅ Contract built successfully${NC}"
@@ -133,7 +140,8 @@ echo "     --id $CONTRACT_ID \\"
 echo "     -- initialize \\"
 echo "     --owner <OWNER_PUBLIC_KEY> \\"
 echo "     --fee_collector <FEE_COLLECTOR_PUBLIC_KEY> \\"
-echo "     --platform_fee_bp 100"
+echo "     --platform_fee_bp 100 \\"
+echo "     --default_whitelisted_tokens [<USDC_TOKEN_CONTRACT_ADDRESS>]"
 echo ""
 echo "2. Update your .env file with:"
 echo "   VITE_SECUREFLOW_CONTRACT_ID=$CONTRACT_ID"

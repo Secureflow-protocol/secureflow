@@ -156,12 +156,8 @@ export default function CreateEscrowPage() {
         hasErrors = true;
       }
 
-      if (
-        !formData.useNativeToken &&
-        (!formData.token || !/^0x[a-fA-F0-9]{40}$/.test(formData.token))
-      ) {
-        newErrors.tokenAddress =
-          "Valid token address is required for custom ERC20 tokens";
+      if (!formData.useNativeToken && !formData.token) {
+        newErrors.tokenAddress = "Please select a token from the whitelisted stablecoins";
         hasErrors = true;
       }
     } else if (step === 2) {
@@ -225,6 +221,11 @@ export default function CreateEscrowPage() {
     // Validate total budget
     if (!formData.totalBudget || Number(formData.totalBudget) < 0.01) {
       errors.push("Total budget must be at least 0.01 tokens");
+    }
+
+    // Validate tokens
+    if (!formData.useNativeToken && !formData.token) {
+      errors.push("Please select a whitelisted token");
     }
 
     // Validate beneficiary (only if not open job)
@@ -546,6 +547,9 @@ export default function CreateEscrowPage() {
                   currentMilestoneIndex={currentMilestoneIndex}
                   onSetCurrentMilestoneIndex={setCurrentMilestoneIndex}
                   totalBudget={formData.totalBudget}
+                  projectTitle={formData.projectTitle}
+                  projectDescription={formData.projectDescription}
+                  durationDays={formData.duration}
                   errors={{
                     milestones: errors.milestones,
                     totalMismatch: errors.totalMismatch,

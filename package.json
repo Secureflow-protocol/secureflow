@@ -4,8 +4,9 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"stellar scaffold watch --build-clients\" \"vite\"",
-    "start": "concurrently \"stellar scaffold watch --build-clients\" \"vite\"",
+    "dev": "vite",
+    "start": "vite",
+    "dev:clients": "stellar scaffold watch --build-clients",
     "prebuild": "(command -v stellar >/dev/null 2>&1 && stellar scaffold build --build-clients) || echo 'Warning: stellar scaffold not available, using committed contracts'",
     "build": "tsc -b && vite build",
     "install:contracts": "npm install --workspace=packages && npm run build --workspace=packages",

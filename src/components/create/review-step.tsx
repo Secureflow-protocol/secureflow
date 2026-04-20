@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, DollarSign, User, Zap } from "lucide-react";
+import { WHITELISTED_TOKENS } from "./project-details-step";
 // Stellar doesn't use smart accounts - removed useSmartAccount import
 
 interface Milestone {
@@ -43,6 +44,10 @@ export function ReviewStep({
     Math.abs(totalMilestoneAmount - Number.parseFloat(formData.totalBudget)) <
     0.01;
 
+  const tokenSymbol = formData.useNativeToken 
+    ? "Native XLM" 
+    : WHITELISTED_TOKENS.find(t => t.address === formData.token)?.symbol || formData.token || "Not selected";
+
   return (
     <Card className="glass border-primary/20 p-6">
       <CardHeader>
@@ -57,15 +62,18 @@ export function ReviewStep({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">{formData.duration} days</span>
             </div>
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">{formData.totalBudget} tokens</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm">
+              {Number(formData.totalBudget || 0).toFixed(2)}{" "}
+              {tokenSymbol}
+            </span>
+          </div>
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">
@@ -93,7 +101,7 @@ export function ReviewStep({
                 >
                   <span className="text-sm">{milestone.description}</span>
                   <span className="text-sm font-medium">
-                    {milestone.amount} tokens
+                    {Number(milestone.amount || 0).toFixed(2)}
                   </span>
                 </div>
               ))}
@@ -104,13 +112,13 @@ export function ReviewStep({
             <div className="flex items-center justify-between">
               <span className="font-medium">Total Milestone Amount:</span>
               <span className="font-semibold">
-                {totalMilestoneAmount.toFixed(2)} tokens
+                {totalMilestoneAmount.toFixed(2)}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="font-medium">Project Budget:</span>
               <span className="font-semibold">
-                {formData.totalBudget} tokens
+                {Number(formData.totalBudget || 0).toFixed(2)}
               </span>
             </div>
             {!isTotalValid && (

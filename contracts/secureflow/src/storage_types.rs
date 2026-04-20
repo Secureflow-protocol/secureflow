@@ -61,6 +61,7 @@ pub enum SecureFlowError {
     InvalidAmount = 1700,
     InvalidAddress = 1701,
     InvalidParameter = 1702,
+    InsufficientWithdrawable = 1703,
     
     // Rating errors (1800-1899)
     EscrowNotCompleted = 1800,
@@ -177,7 +178,9 @@ pub enum DataKey {
     Application(u32, u32),          // (escrow_id, application_index) -> Application
     UserEscrows(Address),           // user -> Vec<u32>
     AuthorizedArbiter(Address),    // arbiter -> bool
+    AuthorizedArbiters,            // -> Vec<Address>
     WhitelistedToken(Address),      // token -> bool
+    WhitelistedTokens,             // -> Vec<Address>
     EscrowedAmount(Address),        // token -> i128
     TotalFeesByToken(Address),      // token -> i128
     Reputation(Address),            // user -> u32

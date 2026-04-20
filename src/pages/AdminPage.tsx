@@ -22,16 +22,7 @@ import { useWeb3 } from "@/contexts/web3-context";
 
 // Unused imports removed: AdminHeader, AdminStats, ContractControls, AdminLoading
 import { DisputeResolution } from "@/components/admin/dispute-resolution";
-import {
-  Lock,
-  Shield,
-  Play,
-  Pause,
-  Download,
-  AlertTriangle,
-  User,
-  Scale,
-} from "lucide-react";
+import { Lock, Shield, Play, Pause, AlertTriangle, User, Scale } from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -53,17 +44,18 @@ export default function AdminPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [loading, setLoading] = useState(true);
   const [contractOwner, setContractOwner] = useState<string | null>(null);
+  const [feeCollector, setFeeCollector] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionType, setActionType] = useState<
-    "pause" | "unpause" | "withdraw" | "authorizeArbiter" | null
+    "pause" | "unpause" | "authorizeArbiter" | null
   >(null);
-  const [withdrawData, setWithdrawData] = useState({
-    token: "", // Stellar: use empty string for native XLM, or contract address for tokens
-    amount: "",
-  });
   const [arbiterAddress, setArbiterAddress] = useState("");
-  const [testMode, setTestMode] = useState(false);
+  const [tokenToWhitelist, setTokenToWhitelist] = useState("");
+  const [whitelistedTokenList, setWhitelistedTokenList] = useState<string[]>([]);
+  const [withdrawToken, setWithdrawToken] = useState("");
+  const [withdrawTo, setWithdrawTo] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
   const [contractStats, setContractStats] = useState({
     platformFeeBP: 0,
     totalEscrows: 0,
@@ -76,6 +68,7 @@ export default function AdminPage() {
     if (wallet.isConnected && wallet.address) {
       checkPausedStatus();
       fetchContractOwner();
+      fetchFeeCollector();
       fetchContractStats();
     }
   }, [wallet.isConnected, wallet.address]);
@@ -95,26 +88,57 @@ export default function AdminPage() {
     }
   };
 
+  const fetchFeeCollector = async () => {
+    try {
+      const fc = await contractService.getFeeCollector();
+      setFeeCollector(fc);
+    } catch (error) {
+      console.error("Error fetching fee collector:", error);
+      setFeeCollector(null);
+    }
+  };
+
   const fetchContractStats = async () => {
     try {
-      // Note: The Stellar contract may not have these exact methods
-      // These are placeholders - adjust based on your actual contract methods
-      // For now, set default values
+      const [platformFeeBP, totalEscrows, arbiters, tokens] = await Promise.all([
+        contractService.getPlatformFeeBP(),
+        contractService.getTotalEscrows(),
+        contractService.getAuthorizedArbiters(),
+        contractService.getWhitelistedTokens(),
+      ]);
+      setWhitelistedTokenList(tokens);
       setContractStats({
-        platformFeeBP: 250, // Default platform fee (2.5% = 250 basis points)
-        totalEscrows: 0, // Would need to track this in the contract
-        totalVolume: "0", // Would need to be tracked in contract
-        authorizedArbiters: 0, // Would need to track this
-        whitelistedTokens: 0, // Would need to track this
+        platformFeeBP,
+        totalEscrows,
+        totalVolume: "0",
+        authorizedArbiters: arbiters.length,
+        whitelistedTokens: tokens.length,
       });
     } catch (error) {
       // Set empty stats if contract calls fail
+      setWhitelistedTokenList([]);
       setContractStats({
         platformFeeBP: 0,
         totalEscrows: 0,
         totalVolume: "0",
         authorizedArbiters: 0,
         whitelistedTokens: 0,
+      });
+    }
+  };
+
+  const short = (addr: string, left = 10, right = 8) =>
+    addr.length > left + right ? `${addr.slice(0, left)}…${addr.slice(-right)}` : addr;
+
+  const copy = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied", description: `${label} copied to clipboard` });
+    } catch {
+      toast({
+        title: "Copy failed",
+        description: "Clipboard permission denied",
+        variant: "destructive",
       });
     }
   };
@@ -146,34 +170,6 @@ export default function AdminPage() {
 
     setActionLoading(true);
     try {
-      // If in test mode, simulate the action without calling the contract
-      if (testMode) {
-        switch (actionType) {
-          case "pause":
-            setIsPaused(true);
-            toast({
-              title: "🧪 Test Mode: Contract paused",
-              description: "Simulated: All escrow operations are now paused",
-            });
-            break;
-          case "unpause":
-            setIsPaused(false);
-            toast({
-              title: "🧪 Test Mode: Contract unpaused",
-              description: "Simulated: Escrow operations have been resumed",
-            });
-            break;
-          case "withdraw":
-            toast({
-              title: "🧪 Test Mode: Tokens withdrawn",
-              description: `Simulated: Withdrew ${withdrawData.amount} tokens from ${withdrawData.token}`,
-            });
-            break;
-        }
-        setDialogOpen(false);
-        return;
-      }
-
       if (!wallet.isConnected || !wallet.address) {
         throw new Error("Wallet not connected");
       }
@@ -240,15 +236,6 @@ export default function AdminPage() {
           window.location.reload();
           break;
 
-        case "withdraw":
-          // Withdraw functionality - implement if needed
-          toast({
-            title: "Withdraw not available",
-            description: "The contract does not support withdraw functionality",
-            variant: "destructive",
-          });
-          break;
-
         case "authorizeArbiter":
           if (!arbiterAddress || !arbiterAddress.trim()) {
             toast({
@@ -284,50 +271,32 @@ export default function AdminPage() {
   };
 
   const getDialogContent = () => {
-    const testModePrefix = testMode ? "🧪 Test Mode: " : "";
-    const testModeSuffix = testMode ? " (Simulated)" : "";
-
     switch (actionType) {
       case "pause":
         return {
-          title: `${testModePrefix}Pause Contract${testModeSuffix}`,
-          description: testMode
-            ? "This will simulate pausing all escrow operations. No real transaction will be sent."
-            : "This will pause all escrow operations. Users will not be able to create new escrows or interact with existing ones until the contract is unpaused.",
+          title: "Pause Contract",
+          description:
+            "This will pause all escrow operations. Users will not be able to create new escrows or interact with existing ones until the contract is unpaused.",
           icon: Pause,
-          confirmText: testMode ? "Simulate Pause" : "Pause Contract",
+          confirmText: "Pause Contract",
           variant: "destructive" as const,
         };
       case "unpause":
         return {
-          title: `${testModePrefix}Unpause Contract${testModeSuffix}`,
-          description: testMode
-            ? "This will simulate resuming all escrow operations. No real transaction will be sent."
-            : "This will resume all escrow operations. Users will be able to interact with escrows again.",
+          title: "Unpause Contract",
+          description:
+            "This will resume all escrow operations. Users will be able to interact with escrows again.",
           icon: Play,
-          confirmText: testMode ? "Simulate Unpause" : "Unpause Contract",
+          confirmText: "Unpause Contract",
           variant: "default" as const,
-        };
-      case "withdraw":
-        return {
-          title: `${testModePrefix}Withdraw Stuck Tokens${testModeSuffix}`,
-          description: testMode
-            ? "This will simulate withdrawing tokens. No real transaction will be sent."
-            : "Withdraw tokens that may be stuck in the contract. This should only be used in emergency situations.",
-          icon: Download,
-          confirmText: testMode ? "Simulate Withdraw" : "Withdraw Tokens",
-          variant: "destructive" as const,
         };
       case "authorizeArbiter":
         return {
-          title: `${testModePrefix}Authorize Arbiter${testModeSuffix}`,
-          description: testMode
-            ? "This will simulate authorizing an arbiter. No real transaction will be sent."
-            : "Authorize an arbiter address. Authorized arbiters can resolve disputes in escrows.",
+          title: "Authorize Arbiter",
+          description:
+            "Authorize an arbiter address. Authorized arbiters can resolve disputes in escrows.",
           icon: Shield,
-          confirmText: testMode
-            ? "Simulate Authorization"
-            : "Authorize Arbiter",
+          confirmText: "Authorize Arbiter",
           variant: "default" as const,
         };
       default:
@@ -419,7 +388,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen py-12">
-      <div className="container mx-auto px-4 max-w-5xl">
+      <div className="container mx-auto px-4 max-w-6xl">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -433,84 +402,6 @@ export default function AdminPage() {
             Manage the SecureFlow escrow contract
           </p>
 
-          {/* Test Mode Toggle */}
-          <Card className="glass border-accent/20 p-4 mb-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">
-                  🧪 Admin Testing Mode
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Enable test mode to simulate admin functions and test the
-                  interface without executing real transactions.
-                </p>
-              </div>
-              <Button
-                variant={testMode ? "default" : "outline"}
-                onClick={() => setTestMode(!testMode)}
-                className="ml-4"
-              >
-                {testMode ? "Exit Test Mode" : "Enable Test Mode"}
-              </Button>
-            </div>
-            {testMode && (
-              <Alert className="mt-4">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Test Mode Active:</strong> All admin functions will be
-                  simulated. No real transactions will be sent to the
-                  blockchain. This allows you to test the admin interface and
-                  see how it would work for a judge or other admin user.
-                </AlertDescription>
-              </Alert>
-            )}
-          </Card>
-
-          {/* Judge Testing Instructions */}
-          <Card className="glass border-primary/20 p-6 mb-8">
-            <div className="flex items-start gap-4">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
-                <Shield className="h-6 w-6 text-primary" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold mb-3">
-                  🏆 For Hackathon Judges
-                </h3>
-                <div className="space-y-3 text-sm">
-                  <p className="text-muted-foreground">
-                    To test admin functionalities as a judge, you have several
-                    options:
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-2">
-                      <span className="text-primary font-bold">1.</span>
-                      <div>
-                        <strong>Test Mode (Recommended):</strong> Use the
-                        "Enable Test Mode" button above to simulate admin
-                        functions without real transactions.
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-primary font-bold">2.</span>
-                      <div>
-                        <strong>Use Different Wallet:</strong> Connect with a
-                        different wallet address to test non-admin user
-                        experience.
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                    <p className="text-xs text-muted-foreground">
-                      <strong>Note:</strong> Test Mode provides a safe way to
-                      test all admin functionalities without affecting the live
-                      contract or requiring additional permissions.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-
           {isPaused && (
             <Alert variant="destructive" className="mb-8">
               <AlertTriangle className="h-4 w-4" />
@@ -522,16 +413,11 @@ export default function AdminPage() {
             </Alert>
           )}
 
-          <Card className="glass border-primary/20 p-6 mb-8">
+          <Card className="glass border-primary/20 p-6 sm:p-7 mb-8">
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <h2 className="text-2xl font-bold">Contract Status</h2>
-                  {testMode && (
-                    <Badge variant="secondary" className="gap-1">
-                      🧪 Test Mode
-                    </Badge>
-                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-muted-foreground">Current State:</span>
@@ -552,15 +438,22 @@ export default function AdminPage() {
                 <p className="text-sm text-muted-foreground mb-1">
                   Contract Address
                 </p>
-                <p className="font-mono text-sm">
-                  {CONTRACTS.SECUREFLOW_ESCROW.slice(0, 20)}...
-                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copy(CONTRACTS.SECUREFLOW_ESCROW, "Contract address")
+                  }
+                  className="font-mono text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  title="Click to copy"
+                >
+                  {short(CONTRACTS.SECUREFLOW_ESCROW, 14, 10)}
+                </button>
               </div>
             </div>
           </Card>
 
           {/* Show role badge */}
-          <Card className="glass border-primary/20 p-4 mb-8">
+          <Card className="glass border-primary/20 p-4 sm:p-5 mb-8">
             <div className="flex items-center gap-3">
               <Badge
                 variant={isOwner ? "default" : "secondary"}
@@ -594,7 +487,7 @@ export default function AdminPage() {
           {isOwner && (
             <>
               {/* Arbiter Authorization Section */}
-              <Card className="glass border-primary/20 p-6 mb-8">
+              <Card className="glass border-primary/20 p-6 sm:p-7 mb-8">
                 <div className="flex items-start gap-4 mb-4">
                   <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
                     <User className="h-6 w-6 text-primary" />
@@ -650,7 +543,7 @@ export default function AdminPage() {
               </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <Card className="glass border-primary/20 p-6">
+                <Card className="glass border-primary/20 p-6 sm:p-7">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
                       {isPaused ? (
@@ -702,84 +595,274 @@ export default function AdminPage() {
                   </Button>
                 </Card>
 
-                <Card className="glass border-primary/20 p-6">
+                <Card className="glass border-primary/20 p-6 sm:p-7">
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-full bg-destructive/10">
-                      <Download className="h-6 w-6 text-destructive" />
+                    <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
+                      <Shield className="h-6 w-6 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-xl font-bold mb-2">
-                        Withdraw Stuck Tokens
-                      </h3>
+                      <h3 className="text-xl font-bold mb-2">Token Whitelist</h3>
                       <p className="text-sm text-muted-foreground leading-relaxed">
-                        Emergency function to withdraw tokens that may be stuck
-                        in the contract
+                        Whitelist a Soroban token contract address (C...) for escrow payments.
                       </p>
                     </div>
                   </div>
-                  <Button
-                    onClick={() => openDialog("withdraw")}
-                    variant="destructive"
-                    className="w-full gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    Withdraw Tokens
-                  </Button>
+
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="whitelistToken">Token Contract Address</Label>
+                      <Input
+                        id="whitelistToken"
+                        value={tokenToWhitelist}
+                        onChange={(e) => setTokenToWhitelist(e.target.value)}
+                        placeholder="C..."
+                        className="font-mono"
+                      />
+                    </div>
+                    <Button
+                      onClick={async () => {
+                        if (!tokenToWhitelist.trim()) return;
+                        setActionLoading(true);
+                        try {
+                          await contractService.whitelistToken(tokenToWhitelist.trim());
+                          toast({
+                            title: "Token whitelisted",
+                            description: short(tokenToWhitelist.trim()),
+                          });
+                          setTokenToWhitelist("");
+                          await fetchContractStats();
+                        } catch (e: any) {
+                          toast({
+                            title: "Whitelist failed",
+                            description: e?.message || "Transaction failed",
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setActionLoading(false);
+                        }
+                      }}
+                      disabled={actionLoading || !tokenToWhitelist.trim()}
+                      className="w-full gap-2"
+                    >
+                      <Shield className="h-4 w-4" />
+                      Whitelist Token
+                    </Button>
+
+                    <div className="pt-2">
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Currently whitelisted ({whitelistedTokenList.length})
+                      </p>
+                      <div className="space-y-2">
+                        {whitelistedTokenList.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No whitelisted tokens found.</p>
+                        ) : (
+                          whitelistedTokenList.slice(0, 6).map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => void copy(t, "Token address")}
+                              className="w-full text-left font-mono text-sm bg-muted/50 p-3 rounded-lg hover:bg-muted/70 transition-colors"
+                              title="Click to copy"
+                            >
+                              {short(t, 18, 14)}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               </div>
+
+              <Card className="glass border-primary/20 p-6 sm:p-7 mb-8">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-destructive/10">
+                    <Scale className="h-6 w-6 text-destructive" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold mb-2">Withdraw Stuck Funds</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Emergency recovery if someone accidentally transfers tokens to the contract.
+                      This can only withdraw the <span className="text-foreground font-medium">excess</span>{" "}
+                      above what’s currently escrowed, so it cannot drain active escrows.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="withdraw-token">Token Contract (C...)</Label>
+                    <Input
+                      id="withdraw-token"
+                      value={withdrawToken}
+                      onChange={(e) => setWithdrawToken(e.target.value)}
+                      placeholder="C..."
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="withdraw-to">Recipient (G...)</Label>
+                    <Input
+                      id="withdraw-to"
+                      value={withdrawTo}
+                      onChange={(e) => setWithdrawTo(e.target.value)}
+                      placeholder="G..."
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="withdraw-amount">Amount (i128 stroops)</Label>
+                    <Input
+                      id="withdraw-amount"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      placeholder="10000000"
+                      className="font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <Button
+                    className="w-full gap-2"
+                    variant="destructive"
+                    disabled={
+                      actionLoading ||
+                      !withdrawToken.trim() ||
+                      !withdrawTo.trim() ||
+                      !withdrawAmount.trim()
+                    }
+                    onClick={async () => {
+                      setActionLoading(true);
+                      try {
+                        await contractService.withdrawStuckFunds({
+                          token: withdrawToken.trim(),
+                          to: withdrawTo.trim(),
+                          amount: withdrawAmount.trim(),
+                        });
+                        toast({
+                          title: "Withdraw submitted",
+                          description: "Transaction sent. Funds will transfer after confirmation.",
+                        });
+                        setWithdrawAmount("");
+                      } catch (e: any) {
+                        toast({
+                          title: "Withdraw failed",
+                          description: e?.message || "Transaction failed",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setActionLoading(false);
+                      }
+                    }}
+                  >
+                    <Scale className="h-4 w-4" />
+                    Withdraw Excess
+                  </Button>
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-muted-foreground">
+                    <div className="bg-muted/30 border border-border/40 rounded-lg p-3">
+                      <p className="font-medium text-foreground mb-1">Step 1</p>
+                      <p>Paste the token contract (C...). For USDC testnet: use the whitelisted USDC contract.</p>
+                    </div>
+                    <div className="bg-muted/30 border border-border/40 rounded-lg p-3">
+                      <p className="font-medium text-foreground mb-1">Step 2</p>
+                      <p>Set the recipient (your treasury / owner wallet G...).</p>
+                    </div>
+                    <div className="bg-muted/30 border border-border/40 rounded-lg p-3">
+                      <p className="font-medium text-foreground mb-1">Step 3</p>
+                      <p>
+                        Amount is base units. For 7-decimal tokens: <span className="font-mono">1.00</span>{" "}
+                        = <span className="font-mono">10000000</span>.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
             </>
           )}
 
           {/* Contract Information - Available to both owners and arbiters */}
-          <Card className="glass border-primary/20 p-6">
+          <Card className="glass border-primary/20 p-6 sm:p-7">
             <h2 className="text-2xl font-bold mb-6">Contract Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <Label className="text-muted-foreground mb-2 block">
                   Owner Address
                 </Label>
-                <p className="font-mono text-sm bg-muted/50 p-3 rounded-lg">
-                  {contractOwner || wallet.address}
-                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copy(contractOwner || wallet.address || "", "Owner address")
+                  }
+                  className="w-full text-left font-mono text-sm bg-muted/50 p-3 rounded-lg hover:bg-muted/70 transition-colors"
+                  title="Click to copy"
+                >
+                  {short(contractOwner || wallet.address, 18, 14)}
+                </button>
               </div>
               <div>
                 <Label className="text-muted-foreground mb-2 block">
                   Connected Wallet
                 </Label>
-                <p className="font-mono text-sm bg-muted/50 p-3 rounded-lg">
-                  {wallet.address}
-                </p>
+                <button
+                  type="button"
+                  onClick={() => void copy(wallet.address!, "Wallet address")}
+                  className="w-full text-left font-mono text-sm bg-muted/50 p-3 rounded-lg hover:bg-muted/70 transition-colors"
+                  title="Click to copy"
+                >
+                  {short(wallet.address!, 18, 14)}
+                </button>
               </div>
               <div>
                 <Label className="text-muted-foreground mb-2 block">
                   Contract Address
                 </Label>
-                <p className="font-mono text-sm bg-muted/50 p-3 rounded-lg">
-                  {CONTRACTS.SECUREFLOW_ESCROW}
-                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copy(CONTRACTS.SECUREFLOW_ESCROW, "Contract address")
+                  }
+                  className="w-full text-left font-mono text-sm bg-muted/50 p-3 rounded-lg hover:bg-muted/70 transition-colors"
+                  title="Click to copy"
+                >
+                  {short(CONTRACTS.SECUREFLOW_ESCROW, 18, 14)}
+                </button>
               </div>
               <div>
                 <Label className="text-muted-foreground mb-2 block">
                   Network
                 </Label>
                 <p className="text-sm bg-muted/50 p-3 rounded-lg">
-                  Stellar Testnet
+                  Stellar {(import.meta.env.VITE_STELLAR_NETWORK || "testnet").toString()}
                 </p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground mb-2 block">
-                  Chain ID
-                </Label>
-                <p className="text-sm bg-muted/50 p-3 rounded-lg">84532</p>
               </div>
               <div>
                 <Label className="text-muted-foreground mb-2 block">
                   Platform Fee
                 </Label>
                 <p className="text-sm bg-muted/50 p-3 rounded-lg">
-                  {contractStats.platformFeeBP}% (
-                  {(contractStats.platformFeeBP / 100).toFixed(2)}%)
+                  {(contractStats.platformFeeBP / 100).toFixed(2)}%{" "}
+                  <span className="text-muted-foreground">
+                    ({contractStats.platformFeeBP} bp)
+                  </span>
                 </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground mb-2 block">
+                  Fee Collector
+                </Label>
+                {feeCollector ? (
+                  <button
+                    type="button"
+                    onClick={() => void copy(feeCollector, "Fee collector")}
+                    className="w-full text-left font-mono text-sm bg-muted/50 p-3 rounded-lg hover:bg-muted/70 transition-colors"
+                    title="Click to copy"
+                  >
+                    {short(feeCollector, 18, 14)}
+                  </button>
+                ) : (
+                  <p className="text-sm bg-muted/50 p-3 rounded-lg">—</p>
+                )}
               </div>
               <div>
                 <Label className="text-muted-foreground mb-2 block">
@@ -847,35 +930,6 @@ export default function AdminPage() {
               {dialogContent.description}
             </DialogDescription>
           </DialogHeader>
-
-          {actionType === "withdraw" && (
-            <div className="space-y-4 my-4">
-              <div className="space-y-2">
-                <Label htmlFor="token">Token Address</Label>
-                <Input
-                  id="token"
-                  placeholder="G..."
-                  value={withdrawData.token}
-                  onChange={(e) =>
-                    setWithdrawData({ ...withdrawData, token: e.target.value })
-                  }
-                  className="font-mono"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  placeholder="1000"
-                  value={withdrawData.amount}
-                  onChange={(e) =>
-                    setWithdrawData({ ...withdrawData, amount: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-          )}
 
           {actionType === "authorizeArbiter" && (
             <div className="space-y-4 my-4">
