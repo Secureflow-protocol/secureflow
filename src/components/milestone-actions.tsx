@@ -9,10 +9,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useWeb3 } from "@/contexts/web3-context";
-// Stellar doesn't use smart accounts or delegation
-// import { useSmartAccount } from "@/contexts/smart-account-context";
-// import { useDelegation } from "@/contexts/delegation-context";
-// import { useNotifications } from "@/contexts/notification-context"; // Unused
+import {
+  useNotifications,
+  createMilestoneNotification,
+} from "@/contexts/notification-context";
 import { useToast } from "@/hooks/use-toast";
 import { CONTRACTS } from "@/lib/web3/config";
 
@@ -50,14 +50,13 @@ export function MilestoneActions({
   isBeneficiary,
   escrowStatus,
   onSuccess,
-  // allMilestones = [], // Unused
-  // showSubmitButton = true, // Unused
-  // payerAddress, // Unused
-  // beneficiaryAddress, // Unused
+  payerAddress,
+  beneficiaryAddress,
   escrowReleasedAmount,
   escrowTotalAmount,
 }: MilestoneActionsProps) {
   const { wallet, getContract } = useWeb3();
+  const { addNotification } = useNotifications();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -264,6 +263,31 @@ export function MilestoneActions({
               detail: { escrowId: Number(escrowId), milestoneIndex },
             }),
           );
+          // Notify freelancer
+          if (beneficiaryAddress) {
+            addNotification(
+              createMilestoneNotification("rejected", escrowId, milestoneIndex, {
+                clientName: wallet.address
+                  ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
+                  : "Client",
+                reason: disputeReason,
+              }),
+              [beneficiaryAddress],
+            );
+          }
+        }
+
+        if (actionType === "dispute") {
+          // Notify the other party about the dispute
+          const otherParty = isPayer ? beneficiaryAddress : payerAddress;
+          if (otherParty) {
+            addNotification(
+              createMilestoneNotification("disputed", escrowId, milestoneIndex, {
+                reason: disputeReason,
+              }),
+              [otherParty],
+            );
+          }
         }
 
         setDialogOpen(false);
