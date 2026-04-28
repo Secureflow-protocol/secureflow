@@ -132,10 +132,13 @@ export default function FreelancersPage() {
               const addr = (escrow as any)?.freelancer as string | undefined;
               if (addr && typeof addr === "string" && addr.startsWith("G")) {
                 const prev = freelancerMap.get(addr) ?? 0;
-                const isCompleted =
-                  (escrow as any)?.status === "Completed" ||
-                  (escrow as any)?.status === 4 ||
-                  Number((escrow as any)?.status) === 4;
+              const rawStatus = (escrow as any)?.status;
+              const isCompleted =
+                rawStatus === 2 ||                        // getEscrow numeric: released/completed
+                rawStatus === "completed" ||
+                rawStatus === "released" ||
+                rawStatus === "Completed" ||
+                rawStatus === "Released";
                 freelancerMap.set(addr, prev + (isCompleted ? 1 : 0));
               }
             })
