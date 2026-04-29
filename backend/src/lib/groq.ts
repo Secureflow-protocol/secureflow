@@ -72,17 +72,41 @@ export async function generateCoverLetter(input: {
   jobDescription: string;
   proposedTimelineDays?: string;
   tone?: string;
+  userDraft?: string;
 }): Promise<string> {
   const client = getGroq();
   if (!client) {
     throw new Error("GROQ_API_KEY is not configured");
   }
 
-  const system = `You write concise, professional cover letters for freelance job applications.
+  const hasUserDraft = input.userDraft && input.userDraft.trim().length > 10;
+
+  const system = hasUserDraft
+    ? `You are a professional writing editor who improves cover letters for freelance job applications.
+Return ONLY valid JSON: {"coverLetter":"..."}
+Rules:
+- Keep the applicant's core points, tone, personality, and specific claims intact
+- Fix grammar, flow, and clarity
+- Make it more compelling without inventing new facts or removing unique details
+- Keep it 120–250 words, first person, no placeholders like [Your Name]
+- Do NOT rewrite it completely — enhance what is already there`
+    : `You write concise, professional cover letters for freelance job applications.
 Return ONLY valid JSON: {"coverLetter":"..."}
 The cover letter should be 120–220 words, first person, no placeholders like [Your Name].`;
 
-  const user = `Job title: ${input.jobTitle}
+  const user = hasUserDraft
+    ? `Improve this cover letter draft while preserving the applicant's voice and specific points.
+
+Job title: ${input.jobTitle}
+Job / project description:
+${input.jobDescription}
+${input.proposedTimelineDays ? `Proposed timeline (days): ${input.proposedTimelineDays}` : ""}
+
+Applicant's draft to improve:
+"""
+${input.userDraft}
+"""`
+    : `Job title: ${input.jobTitle}
 Job / project description:
 ${input.jobDescription}
 ${input.proposedTimelineDays ? `Applicant proposed timeline (days): ${input.proposedTimelineDays}` : ""}

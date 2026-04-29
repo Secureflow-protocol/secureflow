@@ -408,11 +408,13 @@ export default function JobsPage() {
       } else {
       }
 
-      // Call the smart contract applyToJob function
-      // The contract expects: apply_to_job(escrow_id, cover_letter, proposed_timeline, freelancer)
-      // The generated client expects an object with these fields
-      // Pass freelancer address - contract will require auth from it
-      await contract.send("apply_to_job", {
+      // Apply to the job via the gasless path — admin wallet pays the fee,
+      // so the applicant does not need XLM for gas.
+      const { ContractService: GaslessCS } = await import(
+        "@/lib/web3/contract-service"
+      );
+      const gaslessService = new GaslessCS(CONTRACTS.SECUREFLOW_ESCROW);
+      await gaslessService.applyToJobGasless({
         escrow_id: Number.parseInt(job.id, 10),
         cover_letter: coverLetter,
         proposed_timeline: Number.parseInt(proposedTimeline, 10),

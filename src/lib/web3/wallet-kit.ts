@@ -6,7 +6,7 @@
 import {
   StellarWalletsKit,
   WalletNetwork,
-  sep43Modules,
+  allowAllModules,
 } from "@creit.tech/stellar-wallets-kit";
 import { getCurrentNetwork } from "./stellar-config";
 
@@ -15,9 +15,9 @@ const walletNetwork = network.networkPassphrase.includes("Test")
   ? WalletNetwork.TESTNET
   : network.networkPassphrase.includes("Public")
     ? WalletNetwork.PUBLIC
-    : WalletNetwork.TESTNET; // Default to testnet
+    : WalletNetwork.TESTNET;
 
 export const kit: StellarWalletsKit = new StellarWalletsKit({
   network: walletNetwork,
-  modules: sep43Modules(),
+  modules: allowAllModules(),
 });

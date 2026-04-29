@@ -59,6 +59,8 @@ export function ApplicationDialog({
     }
   }, [open]);
 
+  const hasUserText = coverLetter.trim().length > 10;
+
   const draftWithAi = async () => {
     if (!job) return;
     const desc = job.projectDescription?.trim() ?? "";
@@ -85,9 +87,16 @@ export function ApplicationDialog({
         jobDescription: desc,
         proposedTimelineDays: proposedTimeline.trim() || undefined,
         tone: "professional",
+        // Pass the user's existing text so the AI enhances it rather than replacing it
+        userDraft: coverLetter.trim() || undefined,
       });
       setCoverLetter(next);
-      toast({ title: "Draft ready", description: "Review and edit before submitting." });
+      toast({
+        title: hasUserText ? "Enhanced!" : "Draft ready",
+        description: hasUserText
+          ? "Your draft has been polished. Review and edit as needed."
+          : "Review and edit before submitting.",
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Draft failed";
       toast({ title: "AI unavailable", description: msg, variant: "destructive" });
@@ -155,7 +164,9 @@ export function ApplicationDialog({
                 disabled={aiLoading || applying || !job}
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                {aiLoading ? "Drafting…" : "Draft with AI"}
+                {aiLoading
+                  ? hasUserText ? "Enhancing…" : "Drafting…"
+                  : hasUserText ? "Enhance with AI" : "Draft with AI"}
               </Button>
             </div>
             <Textarea

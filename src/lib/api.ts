@@ -75,6 +75,8 @@ export async function postCoverLetterDraft(body: {
   jobDescription: string;
   proposedTimelineDays?: string;
   tone?: string;
+  /** If provided the AI will enhance this draft rather than write from scratch */
+  userDraft?: string;
 }): Promise<{ coverLetter: string }> {
   return apiFetch("/v1/ai/cover-letter", {
     method: "POST",
@@ -86,6 +88,20 @@ export async function postRewriteText(body: { text: string }): Promise<{
   text: string;
 }> {
   return apiFetch("/v1/ai/rewrite", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Submit a user-signed Soroban transaction XDR to the backend which wraps it
+ * in a Stellar fee-bump transaction (admin wallet pays), then submits it.
+ * Used for gasless operations such as job applications.
+ */
+export async function submitGaslessTransaction(body: {
+  signedTxXdr: string;
+}): Promise<{ txHash: string }> {
+  return apiFetch("/v1/gasless/apply", {
     method: "POST",
     body: JSON.stringify(body),
   });

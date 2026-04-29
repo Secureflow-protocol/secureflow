@@ -3169,6 +3169,97 @@ export class ContractService {
     }
   }
 
+  /**
+   * Gasless variant of applyToJob.
+   *
+   * The user's wallet signs the inner Soroban transaction but DOES NOT pay
+   * fees.  Instead the signed XDR is sent to the backend which wraps it in a
+   * Stellar fee-bump transaction (admin wallet is the fee source) and submits
+   * it.  Applicants therefore need zero XLM for gas.
+   */
+  async applyToJobGasless(params: {
+    escrow_id: number;
+    cover_letter: string;
+    proposed_timeline: number;
+    freelancer: string;
+  }): Promise<string> {
+    const { address } = useWalletStore.getState();
+    if (!address) throw new Error("Wallet not connected");
+
+    // Simulate to build the prepared transaction
+    const assembledTx = await this.client.apply_to_job({
+      escrow_id: params.escrow_id,
+      cover_letter: params.cover_letter,
+      proposed_timeline: params.proposed_timeline,
+      freelancer: params.freelancer,
+    });
+
+    const tx = TransactionBuilder.fromXDR(
+      assembledTx.toXDR(),
+      this.network.networkPassphrase
+    );
+
+    const simulation = await this.rpcServer.simulateTransaction(tx);
+
+    if ("errorResult" in simulation && simulation.errorResult) {
+      const val = (simulation.errorResult as any).value?.() || simulation.errorResult;
+      throw new Error(`Simulation failed: ${val}`);
+    }
+
+    const prepared = await this.rpcServer.prepareTransaction(tx);
+
+    const authEntries =
+      "auth" in simulation && Array.isArray(simulation.auth)
+        ? simulation.auth
+        : [];
+
+    let signedTxXdr: string;
+
+    if (authEntries.length > 0) {
+      const signedAuth = await signAuthEntries(authEntries as any[], address);
+      const parsedSignedAuth = signedAuth.map((s) =>
+        xdr.SorobanAuthorizationEntry.fromXDR(s, "base64")
+      );
+
+      const operations = prepared.operations;
+      if (!operations?.length) throw new Error("No operations in prepared tx");
+
+      const op = operations[0] as any;
+      const hostFn = op.function || op.hostFunction;
+      const newOp = Operation.invokeHostFunction({
+        function: hostFn as xdr.HostFunction,
+        auth: parsedSignedAuth,
+      } as any);
+
+      const freshAccount = await this.rpcServer.getAccount(address);
+      const newTx = new TransactionBuilder(freshAccount, {
+        fee: prepared.fee,
+        networkPassphrase: this.network.networkPassphrase,
+      })
+        .addOperation(newOp)
+        .setSorobanData(
+          (prepared as any).getSorobanData?.() ?? (prepared as any).sorobanData
+        )
+        .setTimeout(30)
+        .build();
+
+      signedTxXdr = await signTransaction({
+        unsignedTransaction: newTx.toXDR(),
+        address,
+      });
+    } else {
+      signedTxXdr = await signTransaction({
+        unsignedTransaction: prepared.toXDR(),
+        address,
+      });
+    }
+
+    // Send to backend for fee-bump wrapping and submission
+    const { submitGaslessTransaction } = await import("@/lib/api");
+    const result = await submitGaslessTransaction({ signedTxXdr });
+    return result.txHash;
+  }
+
   async acceptFreelancer(params: {
     escrow_id: number;
     freelancer: string;

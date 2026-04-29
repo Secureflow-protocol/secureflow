@@ -48,6 +48,7 @@ aiRouter.post("/cover-letter", async (req, res) => {
       jobDescription = "",
       proposedTimelineDays = "",
       tone = "",
+      userDraft = "",
     } = req.body ?? {};
 
     if (!String(jobDescription).trim()) {
@@ -62,6 +63,7 @@ aiRouter.post("/cover-letter", async (req, res) => {
         ? String(proposedTimelineDays)
         : undefined,
       tone: tone ? String(tone) : undefined,
+      userDraft: userDraft ? String(userDraft) : undefined,
     });
 
     res.json({ coverLetter });

@@ -6,6 +6,7 @@ import { aiRouter } from "./routes/ai.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { uploadRouter } from "./routes/upload.js";
 import { messagesRouter } from "./routes/messages.js";
+import { gaslessRouter } from "./routes/gasless.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 8787;
@@ -33,6 +34,7 @@ app.use("/v1/ai", auth, aiRouter);
 app.use("/v1/notifications", auth, notificationsRouter);
 app.use("/v1/upload", auth, uploadRouter);
 app.use("/v1/messages", auth, messagesRouter);
+app.use("/v1/gasless", auth, gaslessRouter);
 
 app.listen(port, () => {
   console.log(`secureflow-api listening on :${port}`);

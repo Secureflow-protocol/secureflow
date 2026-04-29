@@ -2,8 +2,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { User, Calendar } from "lucide-react";
+import { User, Calendar, Paperclip } from "lucide-react";
 import { BadgeDisplay, RatingDisplay } from "@/components/rating/badge-display";
+import { parseAttachment } from "@/lib/utils";
 import type { Application as ApplicationType } from "@/lib/web3/types";
 
 interface Application extends ApplicationType {}
@@ -64,9 +65,35 @@ export function ApplicationCard({
 
             <div>
               <Label className="text-sm font-medium">Cover Letter:</Label>
-              <div className="bg-muted/20 rounded-lg p-3 text-sm break-words">
-                {application.coverLetter || "No cover letter provided"}
-              </div>
+              {(() => {
+                const raw = application.coverLetter ?? "";
+                if (!raw) {
+                  return (
+                    <div className="bg-muted/20 rounded-lg p-3 text-sm text-muted-foreground">
+                      No cover letter provided
+                    </div>
+                  );
+                }
+                const { text: body, attachment } = parseAttachment(raw);
+                return (
+                  <div className="space-y-2">
+                    <div className="bg-muted/20 rounded-lg p-3 text-sm whitespace-pre-wrap break-words leading-relaxed">
+                      {body || raw}
+                    </div>
+                    {attachment && (
+                      <a
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                      >
+                        <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                        {attachment.name}
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
