@@ -3,19 +3,19 @@ import { useWeb3 } from "@/contexts/web3-context";
 import { ContractService } from "@/lib/web3/contract-service";
 import { CONTRACTS } from "@/lib/web3/config";
 
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 45_000;
 
 /**
  * Invisible background component that acts as a lightweight indexer.
  *
- * Every 30 s (and only when the tab is visible) it fetches the current user's
+ * Every 45 seconds (and only when the tab is visible) it fetches the current
+ * user's
  * escrow IDs from the contract.  If the set of IDs has changed since the last
  * check it dispatches `escrowUpdated` — the same event that DashboardPage and
  * FreelancerPage already listen to for silent background re-fetches.
  *
- * For within-escrow changes (new milestone submission, approval, etc.) we fall
- * back to dispatching unconditionally after each interval so the UI stays
- * fresh without the user ever needing to refresh the page.
+ * For within-escrow changes we rely on notification-driven event dispatch.
+ * This poller is now only a slow safety net.
  *
  * Mount once inside AppLayout.
  */
@@ -41,11 +41,7 @@ export function EscrowPoller() {
         const ids: number[] = await contractService.getUserEscrows(
           wallet.address!
         );
-        if (!Array.isArray(ids)) {
-          // Fallback: just dispatch so the UI refreshes anyway
-          dispatch();
-          return;
-        }
+        if (!Array.isArray(ids)) return;
 
         const idsKey = [...ids].sort((a, b) => a - b).join(",");
 
@@ -62,20 +58,25 @@ export function EscrowPoller() {
           return;
         }
 
-        // IDs unchanged but milestones / statuses inside may have changed.
-        // We dispatch unconditionally so the page always gets fresh data.
-        dispatch();
       } catch {
-        // Network error or RPC blip — dispatch anyway so the UI
-        // retries its own fetch which has proper error handling.
-        dispatch();
+        // Silent safety poll; ignore transient RPC failures.
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void poll();
       }
     };
 
     // Run once immediately so the first refresh happens quickly
     void poll();
     const id = setInterval(() => void poll(), POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [wallet.address]);
 
   return null;

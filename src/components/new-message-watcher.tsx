@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNotifications } from "@/contexts/notification-context";
 import { getUnreadMessageCount, isApiConfigured } from "@/lib/api";
 
-const POLL_INTERVAL_MS = 20_000;
+const POLL_INTERVAL_MS = 5_000;
 
 /**
  * Invisible component that polls for unread messages every 20 s.

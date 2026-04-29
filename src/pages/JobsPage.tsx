@@ -69,6 +69,29 @@ export default function JobsPage() {
     }
   };
 
+  const normalizeJobStatus = (
+    raw: unknown
+  ): "pending" | "active" | "completed" | "disputed" => {
+    if (typeof raw === "string") {
+      const s = raw.toLowerCase().trim();
+      if (s === "pending" || s === "active" || s === "completed" || s === "disputed") {
+        return s;
+      }
+      if (s === "cancelled" || s === "canceled") return "pending";
+      return "pending";
+    }
+
+    if (typeof raw === "number") {
+      return getStatusFromNumber(raw);
+    }
+
+    if (typeof raw === "bigint") {
+      return getStatusFromNumber(Number(raw));
+    }
+
+    return "pending";
+  };
+
   useEffect(() => {
     if (wallet.address) {
       fetchOpenJobs();
@@ -481,7 +504,8 @@ export default function JobsPage() {
       );
 
     // Status filter
-    const matchesStatus = statusFilter === "all" || job.status === statusFilter;
+    const jobStatus = normalizeJobStatus(job.status);
+    const matchesStatus = statusFilter === "all" || jobStatus === statusFilter;
 
     return matchesSearch && matchesStatus;
   });

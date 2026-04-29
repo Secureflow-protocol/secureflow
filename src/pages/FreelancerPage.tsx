@@ -226,11 +226,20 @@ export default function FreelancerPage() {
 
   // Listen for escrow update events from milestone approvals
   useEffect(() => {
-    const handleEscrowUpdated = async () => {
-      // Wait a moment for blockchain state to update
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      // Refresh the escrow data without reloading the page
-      fetchFreelancerEscrows();
+    const handleEscrowUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ sourceAddress?: string }>).detail;
+      const sourceAddress = detail?.sourceAddress?.toLowerCase();
+      const current = wallet.address?.toLowerCase();
+      if (sourceAddress && current && sourceAddress === current) {
+        // Ignore self-originated updates when source is known.
+        return;
+      }
+
+      // Refresh immediately, then do two quick follow-up refreshes to catch
+      // ledger/indexing propagation without the user manually refreshing.
+      fetchFreelancerEscrows(true);
+      window.setTimeout(() => void fetchFreelancerEscrows(true), 1200);
+      window.setTimeout(() => void fetchFreelancerEscrows(true), 3000);
     };
 
     window.addEventListener("escrowUpdated", handleEscrowUpdated);
@@ -241,7 +250,7 @@ export default function FreelancerPage() {
       window.removeEventListener("milestoneApproved", handleEscrowUpdated);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [wallet.address]);
 
   // Listen for milestone submission events
   useEffect(() => {

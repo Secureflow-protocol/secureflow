@@ -5,6 +5,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import { useWeb3 } from "./web3-context";
@@ -80,6 +81,31 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const { wallet } = useWeb3();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const lastRemoteFingerprintRef = useRef<string>("");
+  const lastRemoteIdsRef = useRef<Set<string>>(new Set());
+
+  const isCrossPartyRemoteNotification = useCallback(
+    (row: RemoteNotificationRow): boolean => {
+      const current = wallet.address?.toLowerCase();
+      if (!current) return false;
+
+      const source =
+        (row.data?.sourceAddress as string | undefined) ||
+        (row.data?.actorAddress as string | undefined) ||
+        (row.data?.fromAddress as string | undefined);
+
+      if (source && source.toLowerCase() === current) return false;
+
+      // These types indicate escrow lifecycle changes relevant to opposite party updates.
+      return (
+        row.type === "milestone" ||
+        row.type === "application" ||
+        row.type === "escrow" ||
+        row.type === "dispute"
+      );
+    },
+    [wallet.address],
+  );
 
   // Load notifications from localStorage on mount and when wallet changes
   useEffect(() => {
@@ -122,16 +148,44 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!wallet.address || !isApiConfigured()) return;
     try {
       const remote = await getNotifications(wallet.address);
+      const prevIds = lastRemoteIdsRef.current;
+      const nextIds = new Set(remote.map((r) => r.id));
+      const newRows = remote.filter((r) => !prevIds.has(r.id));
+      lastRemoteIdsRef.current = nextIds;
+
+      const fingerprint = remote
+        .slice(0, 8)
+        .map((r) => `${r.id}:${r.read ? "1" : "0"}`)
+        .join("|");
+      const hasNewRemoteState =
+        lastRemoteFingerprintRef.current &&
+        lastRemoteFingerprintRef.current !== fingerprint;
+      lastRemoteFingerprintRef.current = fingerprint;
       setNotifications((prev) => mergeRemoteNotifications(remote, prev));
+
+      if (
+        hasNewRemoteState &&
+        newRows.some((row) => isCrossPartyRemoteNotification(row))
+      ) {
+        // Only refresh for opposite-party updates (plus slow safety poll elsewhere).
+        const sourceAddress =
+          (newRows[0]?.data?.sourceAddress as string | undefined) ??
+          (newRows[0]?.data?.actorAddress as string | undefined);
+        window.dispatchEvent(
+          new CustomEvent("escrowUpdated", { detail: { sourceAddress } }),
+        );
+      }
     } catch {
       /* offline or API down — keep local state */
     }
-  }, [wallet.address]);
+  }, [wallet.address, isCrossPartyRemoteNotification]);
 
   useEffect(() => {
     if (!wallet.address || !isApiConfigured()) return;
+    lastRemoteFingerprintRef.current = "";
+    lastRemoteIdsRef.current = new Set();
     void syncRemoteNotifications();
-    const t = window.setInterval(() => void syncRemoteNotifications(), 15_000);
+    const t = window.setInterval(() => void syncRemoteNotifications(), 4_000);
     return () => window.clearInterval(t);
   }, [wallet.address, syncRemoteNotifications]);
 
@@ -163,13 +217,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       targets.forEach((address) => {
         if (address && address.toLowerCase() !== current) {
           if (isApiConfigured()) {
+            const outboundData = {
+              ...(notification.data ?? {}),
+              sourceAddress: wallet.address,
+            };
             postNotification({
               wallet_address: address, // original case preserved — backend requires G-prefix
               type: notification.type,
               title: notification.title,
               message: notification.message,
               action_url: notification.actionUrl,
-              data: notification.data,
+              data: outboundData,
             }).catch(() => {
               // Fallback: write to localStorage so the other party at least
               // sees it if they happen to share the same browser profile.
@@ -280,13 +338,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     // Send cross-wallet notifications via backend API (Supabase).
     targetAddresses.forEach((address) => {
       if (isApiConfigured()) {
+        const outboundData = {
+          ...(newNotification.data ?? {}),
+          sourceAddress: wallet.address,
+        };
         postNotification({
           wallet_address: address,
           type: newNotification.type,
           title: newNotification.title,
           message: newNotification.message,
           action_url: newNotification.actionUrl,
-          data: newNotification.data,
+          data: outboundData,
         }).catch(() => {
           const existing = JSON.parse(
             localStorage.getItem(`notifications_${address}`) || "[]",
