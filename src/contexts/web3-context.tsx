@@ -57,8 +57,12 @@ export function Web3Provider({ children }: { children: ReactNode }) {
   // Keep Zustand wallet store in sync with context state so contract-service
   // methods that call useWalletStore.getState().address always get a valid address.
   useEffect(() => {
-    const { connectWalletStore, disconnectWalletStore } = useWalletStore.getState();
-    const networkName = (import.meta.env.VITE_STELLAR_NETWORK || "testnet") as "testnet" | "mainnet" | "local";
+    const { connectWalletStore, disconnectWalletStore } =
+      useWalletStore.getState();
+    const networkName = (import.meta.env.VITE_STELLAR_NETWORK || "testnet") as
+      | "testnet"
+      | "mainnet"
+      | "local";
     if (walletState.address && walletState.isConnected) {
       connectWalletStore(
         walletState.address,
@@ -82,7 +86,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
   const createRpcServer = () => {
     if (!getRpcServer) {
       throw new Error(
-        "rpc.Server is not available. Please check @stellar/stellar-sdk installation."
+        "rpc.Server is not available. Please check @stellar/stellar-sdk installation.",
       );
     }
     return getRpcServer();
@@ -145,7 +149,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                 .accountId(walletAddr)
                 .call();
               const nativeBalance = account.balances.find(
-                (b: any) => b.asset_type === "native"
+                (b: any) => b.asset_type === "native",
               );
 
               const fullBalance = nativeBalance
@@ -188,7 +192,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                 .accountId(publicKey)
                 .call();
               const nativeBalance = account.balances.find(
-                (b: any) => b.asset_type === "native"
+                (b: any) => b.asset_type === "native",
               );
 
               // Get full precision balance from blockchain
@@ -278,7 +282,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
 
           const account = await horizon.accounts().accountId(publicKey).call();
           const nativeBalance = account.balances.find(
-            (b: any) => b.asset_type === "native"
+            (b: any) => b.asset_type === "native",
           );
 
           // Get full precision balance from blockchain
@@ -304,7 +308,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             title: "Wallet connected",
             description: `Connected to ${publicKey.slice(
               0,
-              6
+              6,
             )}...${publicKey.slice(-4)}`,
           });
         } catch (error: any) {
@@ -322,7 +326,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             title: "Wallet connected",
             description: `Connected to ${publicKey.slice(
               0,
-              6
+              6,
             )}...${publicKey.slice(-4)}`,
           });
         }
@@ -360,7 +364,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
   };
 
   const switchNetwork = async (
-    targetNetwork: "testnet" | "mainnet" | "local"
+    targetNetwork: "testnet" | "mainnet" | "local",
   ) => {
     // Stellar networks are handled via environment variables
     // This is mainly for UI feedback
@@ -442,7 +446,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
               // Build a transaction with the contract call
               const sourceAccount = await server.getAccount(
                 walletState.address ||
-                  "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+                  "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
               );
               const op = contract.call("is_job_creation_paused");
               const tx = new TransactionBuilder(sourceAccount, {
@@ -492,7 +496,6 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             return 1; // Default: no escrows created yet
           }
 
-
           try {
             const contract = new Contract(contractId);
             const server = createRpcServer();
@@ -515,7 +518,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             // Build a transaction with the contract call
             const sourceAccount = await server.getAccount(
               walletState.address ||
-                "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+                "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
             );
             const op = contract.call(method, ...methodArgs);
             const tx = new TransactionBuilder(sourceAccount, {
@@ -569,11 +572,9 @@ export function Web3Provider({ children }: { children: ReactNode }) {
       // Legacy send interface for backward compatibility
       async send(method: string, ...args: any[]) {
         try {
-
           if (!walletState.isConnected || !walletState.address) {
             throw new Error("Wallet not connected");
           }
-
 
           // Use the generated client's methods for sending transactions
           let assembledTx: any;
@@ -606,7 +607,6 @@ export function Web3Provider({ children }: { children: ReactNode }) {
               throw new Error("Freelancer address is required");
             }
 
-
             const contract = new Contract(contractId);
             const server = createRpcServer();
             const sourceAccount = await server.getAccount(walletState.address!);
@@ -620,7 +620,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             });
             const proposedTimelineScVal = nativeToScVal(
               args[0].proposed_timeline,
-              { type: "u32" }
+              { type: "u32" },
             );
             const freelancerScVal = nativeToScVal(freelancerAddress, {
               type: "address",
@@ -637,8 +637,8 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                   escrowIdScVal,
                   coverLetterScVal,
                   proposedTimelineScVal,
-                  freelancerScVal
-                )
+                  freelancerScVal,
+                ),
               )
               .setTimeout(30)
               .build();
@@ -660,7 +660,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                 (simulation.errorResult as any).value?.() ||
                 simulation.errorResult;
               throw new Error(
-                `Transaction simulation failed: ${errorValue.toString()}`
+                `Transaction simulation failed: ${errorValue.toString()}`,
               );
             }
 
@@ -681,13 +681,13 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                     (signed as any).signedAuthEntryXdr ||
                     entryXdr
                   );
-                })
+                }),
               );
 
               // Rebuild transaction with signed auth entries
               const { xdr } = await import("@stellar/stellar-sdk");
               const parsedSignedAuth = signedAuthEntries.map((signed: string) =>
-                xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64")
+                xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64"),
               );
 
               const operations = prepared.operations;
@@ -703,7 +703,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
 
                   // Get fresh account for rebuilding
                   const freshAccount = await server.getAccount(
-                    walletState.address!
+                    walletState.address!,
                   );
                   const newTx = new TransactionBuilder(freshAccount, {
                     fee: prepared.fee,
@@ -769,7 +769,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
               networkPassphrase: network.networkPassphrase,
             })
               .addOperation(
-                contract.call("set_job_creation_paused", pausedScVal)
+                contract.call("set_job_creation_paused", pausedScVal),
               )
               .setTimeout(30)
               .build();
@@ -790,7 +790,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                 (simulation.errorResult as any).value?.() ||
                 simulation.errorResult;
               throw new Error(
-                `Transaction simulation failed: ${errorValue.toString()}`
+                `Transaction simulation failed: ${errorValue.toString()}`,
               );
             }
 
@@ -801,7 +801,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             if (authEntries && authEntries.length > 0) {
               if (!walletState.address) {
                 throw new Error(
-                  "Wallet address is required to sign auth entries"
+                  "Wallet address is required to sign auth entries",
                 );
               }
 
@@ -817,29 +817,26 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                     (signed as any).signedAuthEntryXdr ||
                     entryXdr
                   );
-                })
+                }),
               );
-
 
               if (!signedAuthEntries || signedAuthEntries.length === 0) {
                 throw new Error("Failed to sign auth entries");
               }
 
-
               // Rebuild the transaction with signed auth entries
               const txXdr = prepared.toXDR();
               const txWithAuth = TransactionBuilder.fromXDR(
                 txXdr,
-                network.networkPassphrase
+                network.networkPassphrase,
               );
 
               // Replace auth entries in the operation
               // Parse signed auth entries first
               const { xdr } = await import("@stellar/stellar-sdk");
               const parsedSignedAuth = signedAuthEntries.map((signed: string) =>
-                xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64")
+                xdr.SorobanAuthorizationEntry.fromXDR(signed, "base64"),
               );
-
 
               // Rebuild the transaction with signed auth entries
               // Use the original transaction structure but inject signed auth entries
@@ -860,7 +857,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
 
                   // Get fresh account to ensure correct sequence number
                   const freshAccount = await server.getAccount(
-                    walletState.address!
+                    walletState.address!,
                   );
 
                   // Build transaction with the new operation
@@ -885,25 +882,24 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                     {
                       networkPassphrase: network.networkPassphrase,
                       address: walletState.address,
-                    }
+                    },
                   );
 
                   if (!signResult || !signResult.signedTxXdr) {
                     throw new Error(
-                      "Transaction signing failed - no signed transaction received"
+                      "Transaction signing failed - no signed transaction received",
                     );
                   }
 
                   // Parse the signed XDR back into a Transaction object
                   const signedTransaction = TransactionBuilder.fromXDR(
                     signResult.signedTxXdr,
-                    network.networkPassphrase
+                    network.networkPassphrase,
                   );
 
                   // Send the signed transaction via RPC
                   const sendResponse =
                     await server.sendTransaction(signedTransaction);
-
 
                   // Check for errors in the response
                   if (
@@ -941,7 +937,6 @@ export function Web3Provider({ children }: { children: ReactNode }) {
 
                   // Wait for transaction confirmation if status is PENDING
                   if (sendResponse.status === "PENDING" && sendResponse.hash) {
-
                     // Poll for transaction status
                     let attempts = 0;
                     const maxAttempts = 30; // Wait up to 30 seconds
@@ -954,7 +949,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                       await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
                       try {
                         const txResponse = await server.getTransaction(
-                          sendResponse.hash
+                          sendResponse.hash,
                         );
                         // getTransaction returns GetTransactionResponse, extract the transaction
                         txStatus =
@@ -970,7 +965,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                     const txStatusValue = (txStatus as any).status || txStatus;
                     if (txStatusValue === "PENDING") {
                       throw new Error(
-                        "Transaction still pending after waiting. It may have failed."
+                        "Transaction still pending after waiting. It may have failed.",
                       );
                     }
 
@@ -1042,7 +1037,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
               networkPassphrase: network.networkPassphrase,
             })
               .addOperation(
-                contract.call("set_job_creation_paused", pausedScVal)
+                contract.call("set_job_creation_paused", pausedScVal),
               )
               .setTimeout(30)
               .build();
@@ -1053,7 +1048,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                 (simulation.errorResult as any).value?.() ||
                 simulation.errorResult;
               throw new Error(
-                `Transaction simulation failed: ${errorValue.toString()}`
+                `Transaction simulation failed: ${errorValue.toString()}`,
               );
             }
             const prepared = await server.prepareTransaction(tx);
@@ -1071,7 +1066,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
               networkPassphrase: network.networkPassphrase,
             })
               .addOperation(
-                contract.call("set_job_creation_paused", pausedScVal)
+                contract.call("set_job_creation_paused", pausedScVal),
               )
               .setTimeout(30)
               .build();
@@ -1082,7 +1077,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                 (simulation.errorResult as any).value?.() ||
                 simulation.errorResult;
               throw new Error(
-                `Transaction simulation failed: ${errorValue.toString()}`
+                `Transaction simulation failed: ${errorValue.toString()}`,
               );
             }
             const prepared = await server.prepareTransaction(tx);
@@ -1091,10 +1086,9 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             } as any;
           } else {
             throw new Error(
-              `Method ${method} not supported in generated client`
+              `Method ${method} not supported in generated client`,
             );
           }
-
 
           // Sign and send manually (like create_escrow)
 
@@ -1119,17 +1113,16 @@ export function Web3Provider({ children }: { children: ReactNode }) {
               networkPassphrase: network.networkPassphrase,
             });
 
-
             if (!signResult || !signResult.signedTxXdr) {
               throw new Error(
-                "Transaction signing failed - no signed transaction received"
+                "Transaction signing failed - no signed transaction received",
               );
             }
 
             // Parse the signed XDR back into a Transaction object
             const signedTransaction = TransactionBuilder.fromXDR(
               signResult.signedTxXdr,
-              network.networkPassphrase
+              network.networkPassphrase,
             );
 
             // Send the signed transaction via RPC
@@ -1137,12 +1130,10 @@ export function Web3Provider({ children }: { children: ReactNode }) {
             const sendResponse =
               await server.sendTransaction(signedTransaction);
 
-
             // signAndSend() returns a SendTransactionResponse
             // Check for errors in the response
             let finalResponse: any = sendResponse;
             if (sendResponse.status === "PENDING" && sendResponse.hash) {
-
               // Poll for transaction status
               const server = createRpcServer();
               let attempts = 0;
@@ -1155,7 +1146,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                 await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
                 try {
                   const txStatus = await server.getTransaction(
-                    sendResponse.hash
+                    sendResponse.hash,
                   );
                   // Convert GetTransactionResponse to SendTransactionResponse format
                   finalResponse = {
@@ -1175,10 +1166,9 @@ export function Web3Provider({ children }: { children: ReactNode }) {
 
               if (finalResponse.status === "PENDING") {
                 throw new Error(
-                  "Transaction still pending after waiting. It may have failed."
+                  "Transaction still pending after waiting. It may have failed.",
                 );
               }
-
             }
 
             // Check for errors in the response
@@ -1219,7 +1209,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                       if (finalResponse.diagnosticEvents) {
                         const events = finalResponse.diagnosticEvents;
                         const errorEvent = events.find(
-                          (e: any) => e.topics && e.topics.includes("error")
+                          (e: any) => e.topics && e.topics.includes("error"),
                         );
                         if (errorEvent && errorEvent.data) {
                           if (Array.isArray(errorEvent.data)) {
@@ -1240,7 +1230,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                     if (finalResponse.diagnosticEvents) {
                       const events = finalResponse.diagnosticEvents;
                       const errorEvent = events.find(
-                        (e: any) => e.topics && e.topics.includes("error")
+                        (e: any) => e.topics && e.topics.includes("error"),
                       );
                       if (errorEvent && errorEvent.data) {
                         if (Array.isArray(errorEvent.data)) {
@@ -1261,7 +1251,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                   if (finalResponse.diagnosticEvents) {
                     const events = finalResponse.diagnosticEvents;
                     const errorEvent = events.find(
-                      (e: any) => e.topics && e.topics.includes("error")
+                      (e: any) => e.topics && e.topics.includes("error"),
                     );
                     if (errorEvent && errorEvent.data) {
                       if (Array.isArray(errorEvent.data)) {
@@ -1282,7 +1272,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
                 if (finalResponse.diagnosticEvents) {
                   const events = finalResponse.diagnosticEvents;
                   const errorEvent = events.find(
-                    (e: any) => e.topics && e.topics.includes("error")
+                    (e: any) => e.topics && e.topics.includes("error"),
                   );
                   if (errorEvent && errorEvent.data) {
                     if (Array.isArray(errorEvent.data)) {
@@ -1346,7 +1336,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
         .accountId(walletState.address)
         .call();
       const nativeBalance = account.balances.find(
-        (b: any) => b.asset_type === "native"
+        (b: any) => b.asset_type === "native",
       );
 
       // Get full precision balance from blockchain
@@ -1363,8 +1353,7 @@ export function Web3Provider({ children }: { children: ReactNode }) {
         }));
       }
       // If nativeBalance is null, keep existing balance (don't reset to 0)
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   return (

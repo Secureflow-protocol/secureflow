@@ -46,7 +46,7 @@ export const signTransaction = async ({
 
   if (!signResult || !signResult.signedTxXdr) {
     throw new Error(
-      "Transaction signing failed - no signed transaction received"
+      "Transaction signing failed - no signed transaction received",
     );
   }
 
@@ -60,7 +60,7 @@ export const signTransaction = async ({
  */
 export const signAuthEntries = async (
   authEntries: any[],
-  address: string
+  address: string,
 ): Promise<string[]> => {
   const network = getCurrentNetwork();
 
@@ -83,7 +83,7 @@ export const signAuthEntries = async (
         throw new Error("Auth entry signing failed — no signed entry returned");
       }
       return signedEntry;
-    })
+    }),
   );
 
   return signedAuthEntries;

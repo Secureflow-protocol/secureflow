@@ -40,5 +40,5 @@ createRoot(document.getElementById("root") as HTMLElement).render(
         </QueryClientProvider>
       </StellarNotificationProvider>
     </ThemeProvider>
-  </StrictMode>
+  </StrictMode>,
 );

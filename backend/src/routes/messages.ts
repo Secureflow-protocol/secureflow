@@ -22,10 +22,15 @@ messagesRouter.post("/", async (req, res) => {
   const { sender_address, recipient_address, content } = req.body ?? {};
 
   if (
-    !sender_address || !STELLAR_ADDR.test(String(sender_address)) ||
-    !recipient_address || !STELLAR_ADDR.test(String(recipient_address))
+    !sender_address ||
+    !STELLAR_ADDR.test(String(sender_address)) ||
+    !recipient_address ||
+    !STELLAR_ADDR.test(String(recipient_address))
   ) {
-    res.status(400).json({ error: "sender_address and recipient_address must be valid Stellar G-addresses" });
+    res.status(400).json({
+      error:
+        "sender_address and recipient_address must be valid Stellar G-addresses",
+    });
     return;
   }
 
@@ -73,14 +78,18 @@ messagesRouter.get("/conversation", async (req, res) => {
   const since = String(req.query.since ?? "").trim();
 
   if (!STELLAR_ADDR.test(a) || !STELLAR_ADDR.test(b)) {
-    res.status(400).json({ error: "a and b must be valid Stellar G-addresses" });
+    res
+      .status(400)
+      .json({ error: "a and b must be valid Stellar G-addresses" });
     return;
   }
 
   const convId = conversationId(a, b);
   let query = supabase
     .from("messages")
-    .select("id, sender_address, recipient_address, content, read_at, created_at")
+    .select(
+      "id, sender_address, recipient_address, content, read_at, created_at",
+    )
     .eq("conversation_id", convId)
     .order("created_at", { ascending: true })
     .limit(200);
@@ -115,7 +124,9 @@ messagesRouter.get("/inbox", async (req, res) => {
   // Fetch messages where user is sender OR recipient, ordered by newest first
   const { data, error } = await supabase
     .from("messages")
-    .select("id, conversation_id, sender_address, recipient_address, content, read_at, created_at")
+    .select(
+      "id, conversation_id, sender_address, recipient_address, content, read_at, created_at",
+    )
     .or(`sender_address.eq.${wallet},recipient_address.eq.${wallet}`)
     .order("created_at", { ascending: false })
     .limit(500);
@@ -126,16 +137,22 @@ messagesRouter.get("/inbox", async (req, res) => {
   }
 
   // Group by conversation, keep latest message + unread count
-  const convMap = new Map<string, {
-    conversation_id: string;
-    other_address: string;
-    latest_message: string;
-    latest_at: string;
-    unread: number;
-  }>();
+  const convMap = new Map<
+    string,
+    {
+      conversation_id: string;
+      other_address: string;
+      latest_message: string;
+      latest_at: string;
+      unread: number;
+    }
+  >();
 
   for (const row of data ?? []) {
-    const other = row.sender_address === wallet ? row.recipient_address : row.sender_address;
+    const other =
+      row.sender_address === wallet
+        ? row.recipient_address
+        : row.sender_address;
     if (!convMap.has(row.conversation_id)) {
       convMap.set(row.conversation_id, {
         conversation_id: row.conversation_id,
@@ -195,8 +212,14 @@ messagesRouter.patch("/conversation/read", async (req, res) => {
   const b = String(req.query.b ?? "").trim();
   const wallet = String(req.query.wallet ?? "").trim();
 
-  if (!STELLAR_ADDR.test(a) || !STELLAR_ADDR.test(b) || !STELLAR_ADDR.test(wallet)) {
-    res.status(400).json({ error: "a, b, and wallet must be valid Stellar G-addresses" });
+  if (
+    !STELLAR_ADDR.test(a) ||
+    !STELLAR_ADDR.test(b) ||
+    !STELLAR_ADDR.test(wallet)
+  ) {
+    res
+      .status(400)
+      .json({ error: "a, b, and wallet must be valid Stellar G-addresses" });
     return;
   }
 

@@ -49,7 +49,7 @@ export const useWalletRefactored = () => {
               try {
                 const balances = await fetchBalance(address);
                 const nativeBalance = balances.find(
-                  (b: any) => b.asset_type === "native"
+                  (b: any) => b.asset_type === "native",
                 );
                 const balance = nativeBalance
                   ? parseFloat(nativeBalance.balance).toFixed(4)
@@ -104,14 +104,13 @@ export const useWalletRefactored = () => {
     try {
       const balances = await fetchBalance(address);
       const nativeBalance = balances.find(
-        (b: any) => b.asset_type === "native"
+        (b: any) => b.asset_type === "native",
       );
       const balance = nativeBalance
         ? parseFloat(nativeBalance.balance).toFixed(4)
         : "0";
       updateBalance(balance);
-    } catch (error) {
-    }
+    } catch (error) {}
   }, [updateBalance]);
 
   return {

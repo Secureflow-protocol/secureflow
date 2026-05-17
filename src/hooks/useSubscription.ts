@@ -33,7 +33,7 @@ export function useSubscription(
   contractId: string,
   topic: string,
   onEvent: (event: Api.EventResponse) => void,
-  pollInterval = 5000
+  pollInterval = 5000,
 ) {
   const id = `${contractId}:${topic}`;
   paging[id] = paging[id] || {};

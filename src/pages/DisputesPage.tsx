@@ -82,7 +82,12 @@ export default function DisputesPage() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-4"
         >
-          <Button asChild variant="ghost" size="sm" className="gap-1.5 text-muted-foreground">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground"
+          >
             <Link to="/admin">
               <ArrowLeft className="h-4 w-4" />
               Admin

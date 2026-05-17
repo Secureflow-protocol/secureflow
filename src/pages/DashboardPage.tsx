@@ -57,7 +57,7 @@ export default function DashboardPage() {
   const [sortFilter, setSortFilter] = useState<"newest" | "oldest">("newest");
   const [expandedEscrow, setExpandedEscrow] = useState<string | null>(null);
   const [submittingMilestone, setSubmittingMilestone] = useState<string | null>(
-    null
+    null,
   );
 
   const getStatusFromNumber = (status: number): string => {
@@ -107,7 +107,7 @@ export default function DashboardPage() {
   };
 
   const getDaysLeftMessage = (
-    daysLeft: number
+    daysLeft: number,
   ): { text: string; color: string; bgColor: string } => {
     if (daysLeft > 7) {
       return {
@@ -231,7 +231,6 @@ export default function DashboardPage() {
             escrowData.freelancer.toLowerCase().trim() ===
               wallet.address.toLowerCase().trim();
 
-
           // Show escrows for both clients and freelancers, but with different functionality
           if (isPayer || isBeneficiary) {
             // Convert ledger sequence to approximate timestamp
@@ -336,7 +335,6 @@ export default function DashboardPage() {
                   };
                   const status = statusMap[statusNumber] || "pending";
 
-
                   // Convert ledger sequences to timestamps
                   const SECONDS_PER_LEDGER = 5;
                   const submittedAtLedger = m.submitted_at || 0;
@@ -433,7 +431,6 @@ export default function DashboardPage() {
           continue;
         }
       }
-
 
       // If we had escrows before but now have 0, preserve existing escrows and log warning
       if (previousEscrowsCount > 0 && userEscrows.length === 0) {
@@ -760,7 +757,7 @@ export default function DashboardPage() {
         "approve_milestone",
         "no-value",
         escrowId,
-        milestoneIndex
+        milestoneIndex,
       );
 
       // Transaction is already confirmed via waitForConfirmation in web3-context
@@ -846,7 +843,8 @@ export default function DashboardPage() {
       // Notify all authorized arbiters via the backend
       const escrow = escrows.find((e) => e.id === escrowId);
       try {
-        const authorizedArbiters = await contractService.getAuthorizedArbiters();
+        const authorizedArbiters =
+          await contractService.getAuthorizedArbiters();
         for (const arbAddr of authorizedArbiters) {
           addNotification(
             {
@@ -907,7 +905,7 @@ export default function DashboardPage() {
   const rejectMilestone = async (
     escrowId: string,
     milestoneIndex: number,
-    reason: string
+    reason: string,
   ) => {
     try {
       // SECURITY: Double-check that user is the depositor
@@ -1162,19 +1160,19 @@ export default function DashboardPage() {
                   }
                   onToggleExpanded={() =>
                     setExpandedEscrow(
-                      expandedEscrow === escrow.id ? null : escrow.id
+                      expandedEscrow === escrow.id ? null : escrow.id,
                     )
                   }
                   onApproveMilestone={approveMilestone}
                   onRejectMilestone={(
                     escrowId: string,
-                    milestoneIndex: number
+                    milestoneIndex: number,
                   ) => {
                     // For now, use empty reason - this should be handled by the component
                     rejectMilestone(
                       escrowId,
                       milestoneIndex,
-                      "No reason provided"
+                      "No reason provided",
                     );
                   }}
                   onDisputeMilestone={disputeMilestone}

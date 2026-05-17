@@ -78,7 +78,7 @@ export function RatingDialog({
         escrowId,
         rating,
         review,
-        wallet.address || undefined
+        wallet.address || undefined,
       );
       toast({
         title: "Rating Submitted",

@@ -1,16 +1,7 @@
-
-
-import {
-  createContext,
-  use,
-  useState,
-  useEffect,
-  type ReactNode,
-} from "react";
+import { createContext, use, useState, useEffect, type ReactNode } from "react";
 import { useWeb3 } from "./web3-context";
 import { useToast } from "@/hooks/use-toast";
 import { CONTRACTS } from "@/lib/web3/config";
-
 
 interface Delegation {
   id: string;
@@ -80,8 +71,7 @@ export function DelegationProvider({ children }: { children: ReactNode }) {
       if (stored) {
         setDelegations(JSON.parse(stored));
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   const saveDelegations = (newDelegations: Delegation[]) => {
@@ -199,7 +189,6 @@ export function DelegationProvider({ children }: { children: ReactNode }) {
 
       // Simulate gasless execution - no MetaMask, no blockchain, no gas fees
       const txHash = "0x" + Math.random().toString(16).substr(2, 64);
-
 
       // Simulate processing time for realistic UX
       await new Promise((resolve) => setTimeout(resolve, 2000));

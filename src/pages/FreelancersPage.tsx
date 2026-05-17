@@ -29,8 +29,8 @@ import {
 
 interface FreelancerProfile {
   address: string;
-  badge: string;        // "Beginner" | "Intermediate" | "Advanced" | "Expert"
-  avgRating: number;    // 0-5
+  badge: string; // "Beginner" | "Intermediate" | "Advanced" | "Expert"
+  avgRating: number; // 0-5
   ratingCount: number;
   completedProjects: number;
   reputation: number;
@@ -127,22 +127,25 @@ export default function FreelancersPage() {
       const escrowPromises: Promise<void>[] = [];
       for (let i = 1; i < nextId; i++) {
         escrowPromises.push(
-          svc.getEscrow(i)
+          svc
+            .getEscrow(i)
             .then((escrow) => {
               const addr = (escrow as any)?.freelancer as string | undefined;
               if (addr && typeof addr === "string" && addr.startsWith("G")) {
                 const prev = freelancerMap.get(addr) ?? 0;
-              const rawStatus = (escrow as any)?.status;
-              const isCompleted =
-                rawStatus === 2 ||                        // getEscrow numeric: released/completed
-                rawStatus === "completed" ||
-                rawStatus === "released" ||
-                rawStatus === "Completed" ||
-                rawStatus === "Released";
+                const rawStatus = (escrow as any)?.status;
+                const isCompleted =
+                  rawStatus === 2 || // getEscrow numeric: released/completed
+                  rawStatus === "completed" ||
+                  rawStatus === "released" ||
+                  rawStatus === "Completed" ||
+                  rawStatus === "Released";
                 freelancerMap.set(addr, prev + (isCompleted ? 1 : 0));
               }
             })
-            .catch(() => { /* skip */ }),
+            .catch(() => {
+              /* skip */
+            }),
         );
       }
       await Promise.all(escrowPromises);
@@ -153,7 +156,9 @@ export default function FreelancersPage() {
           async ([address, completedCount]): Promise<FreelancerProfile> => {
             const [badge, ratingData, rep] = await Promise.all([
               svc.getBadge(address).catch((): "Beginner" => "Beginner"),
-              svc.getAverageRating(address).catch(() => ({ average: 0, count: 0 })),
+              svc
+                .getAverageRating(address)
+                .catch(() => ({ average: 0, count: 0 })),
               svc.getReputation(address).catch(() => 0),
             ]);
 
@@ -190,10 +195,8 @@ export default function FreelancersPage() {
   const filtered = freelancers
     .filter((f) => {
       const q = search.toLowerCase();
-      const matchSearch =
-        !q || f.address.toLowerCase().includes(q);
-      const matchBadge =
-        badgeFilter === "all" || f.badge === badgeFilter;
+      const matchSearch = !q || f.address.toLowerCase().includes(q);
+      const matchBadge = badgeFilter === "all" || f.badge === badgeFilter;
       return matchSearch && matchBadge;
     })
     .sort((a, b) => {
@@ -201,14 +204,14 @@ export default function FreelancersPage() {
         if (b.avgRating !== a.avgRating) return b.avgRating - a.avgRating;
         return b.ratingCount - a.ratingCount;
       }
-      if (sortBy === "projects") return b.completedProjects - a.completedProjects;
+      if (sortBy === "projects")
+        return b.completedProjects - a.completedProjects;
       return b.reputation - a.reputation;
     });
 
   return (
     <div className="min-h-screen gradient-mesh py-10">
       <div className="container mx-auto px-4 max-w-6xl space-y-8">
-
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
@@ -325,7 +328,9 @@ export default function FreelancersPage() {
       {chatTarget && (
         <ChatDialog
           open={!!chatTarget}
-          onOpenChange={(open) => { if (!open) setChatTarget(null); }}
+          onOpenChange={(open) => {
+            if (!open) setChatTarget(null);
+          }}
           myAddress={myAddress}
           otherAddress={chatTarget}
         />
@@ -357,7 +362,6 @@ function FreelancerCard({
     >
       <Card className="group glass border-primary/20 hover:border-primary/50 transition-colors h-full flex flex-col relative overflow-hidden">
         <CardContent className="p-5 flex flex-col gap-4 flex-1">
-
           {/* Avatar + address + badge */}
           <div className="flex items-start gap-3">
             <div
@@ -366,7 +370,9 @@ function FreelancerCard({
               {avatarLetters(profile.address)}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="font-mono text-sm font-semibold truncate">{short}</p>
+              <p className="font-mono text-sm font-semibold truncate">
+                {short}
+              </p>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 <Badge
                   variant="outline"
@@ -398,19 +404,19 @@ function FreelancerCard({
             <div className="rounded-lg bg-muted/30 p-2.5">
               <div className="flex items-center justify-center gap-1 mb-0.5">
                 <Briefcase className="h-3.5 w-3.5 text-primary" />
-                <span className="text-base font-bold">{profile.reputation}</span>
+                <span className="text-base font-bold">
+                  {profile.reputation}
+                </span>
               </div>
-              <p className="text-[11px] text-muted-foreground">Reputation pts</p>
+              <p className="text-[11px] text-muted-foreground">
+                Reputation pts
+              </p>
             </div>
           </div>
 
           {/* Actions */}
           <div className="mt-auto flex gap-2">
-            <Button
-              size="sm"
-              className="flex-1 gap-1"
-              onClick={onHire}
-            >
+            <Button size="sm" className="flex-1 gap-1" onClick={onHire}>
               Hire
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>

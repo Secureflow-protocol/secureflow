@@ -1,11 +1,15 @@
-
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle, XCircle, Clock, AlertCircle, Paperclip } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
+  AlertCircle,
+  Paperclip,
+} from "lucide-react";
 import { parseAttachment } from "@/lib/utils";
 import { motion } from "framer-motion";
 import type { Escrow, Milestone } from "@/lib/web3/types";
@@ -145,10 +149,14 @@ function MilestoneApprovalItem({
             </Badge>
           </div>
           {(() => {
-            const { body, attachment } = parseAttachment(milestone.description ?? "");
+            const { body, attachment } = parseAttachment(
+              milestone.description ?? "",
+            );
             return (
               <>
-                <p className="text-sm text-gray-700 mb-1 whitespace-pre-wrap">{body}</p>
+                <p className="text-sm text-gray-700 mb-1 whitespace-pre-wrap">
+                  {body}
+                </p>
                 {attachment && (
                   <a
                     href={attachment.url}

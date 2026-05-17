@@ -75,7 +75,7 @@ export function Web3ProviderRefactored({ children }: { children: ReactNode }) {
             try {
               const balances = await fetchBalance(publicKey);
               const nativeBalance = balances.find(
-                (b: any) => b.asset_type === "native"
+                (b: any) => b.asset_type === "native",
               );
               const balance = nativeBalance
                 ? parseFloat(nativeBalance.balance).toFixed(4)
@@ -85,11 +85,9 @@ export function Web3ProviderRefactored({ children }: { children: ReactNode }) {
               useWalletStore.getState().updateBalance("0");
             }
           }
-        } catch (error) {
-        }
+        } catch (error) {}
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   const handleConnectWallet = async () => {
@@ -141,7 +139,7 @@ export function useWeb3Refactored() {
   const context = useContext(Web3Context);
   if (context === undefined) {
     throw new Error(
-      "useWeb3Refactored must be used within Web3ProviderRefactored"
+      "useWeb3Refactored must be used within Web3ProviderRefactored",
     );
   }
   return context;

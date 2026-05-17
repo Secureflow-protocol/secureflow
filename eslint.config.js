@@ -68,5 +68,5 @@ export default tseslint.config(
       "@typescript-eslint/restrict-template-expressions": "warn",
       "@typescript-eslint/unbound-method": "warn",
     },
-  }
+  },
 );

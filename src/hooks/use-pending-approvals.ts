@@ -32,7 +32,8 @@ export function usePendingApprovals() {
         if (!escrow) continue;
 
         const isMyJob =
-          escrow.creator?.toLowerCase().trim() === wallet.address.toLowerCase().trim();
+          escrow.creator?.toLowerCase().trim() ===
+          wallet.address.toLowerCase().trim();
         if (!isMyJob) continue;
 
         const isOpenJob =

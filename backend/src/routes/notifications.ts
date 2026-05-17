@@ -98,7 +98,9 @@ notificationsRouter.post("/", async (req, res) => {
 
   const wallet = String(wallet_address ?? "").trim();
   if (!wallet || !wallet.startsWith("G")) {
-    res.status(400).json({ error: "wallet_address must be a Stellar G-address" });
+    res
+      .status(400)
+      .json({ error: "wallet_address must be a Stellar G-address" });
     return;
   }
 

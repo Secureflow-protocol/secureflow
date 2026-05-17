@@ -44,14 +44,14 @@ export default function JobsPage() {
   const [hasApplied, setHasApplied] = useState<Record<string, boolean>>({});
   const [isContractPaused, setIsContractPaused] = useState(false);
   const [contractConfigError, setContractConfigError] = useState<string | null>(
-    null
+    null,
   );
   const [ongoingProjectsCount, setOngoingProjectsCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [totalEscrowsCount, setTotalEscrowsCount] = useState(0); // Actual count from blockchain
 
   const getStatusFromNumber = (
-    status: number
+    status: number,
   ): "pending" | "disputed" | "active" | "completed" => {
     switch (status) {
       case 0:
@@ -70,11 +70,16 @@ export default function JobsPage() {
   };
 
   const normalizeJobStatus = (
-    raw: unknown
+    raw: unknown,
   ): "pending" | "active" | "completed" | "disputed" => {
     if (typeof raw === "string") {
       const s = raw.toLowerCase().trim();
-      if (s === "pending" || s === "active" || s === "completed" || s === "disputed") {
+      if (
+        s === "pending" ||
+        s === "active" ||
+        s === "completed" ||
+        s === "disputed"
+      ) {
         return s;
       }
       if (s === "cancelled" || s === "canceled") return "pending";
@@ -166,7 +171,7 @@ export default function JobsPage() {
         try {
           const hasAppliedResult = await contractService.hasUserApplied(
             Number.parseInt(job.id, 10),
-            wallet.address
+            wallet.address,
           );
           applicationStatus[job.id] = hasAppliedResult;
         } catch (error) {
@@ -241,7 +246,7 @@ export default function JobsPage() {
       const maxEscrowsToFetch = 20; // Limit to 20 escrows max
       const escrowsToCheck = Math.min(
         Math.max(escrowCount - 1, 1),
-        maxEscrowsToFetch
+        maxEscrowsToFetch,
       );
 
       // Always check at least escrow 1, even if escrowCount is 1 (might be timeout default)
@@ -280,7 +285,7 @@ export default function JobsPage() {
                 try {
                   userHasApplied = await contractService.hasUserApplied(
                     i,
-                    wallet.address
+                    wallet.address,
                   );
                 } catch (error) {
                   userHasApplied = false;
@@ -295,7 +300,7 @@ export default function JobsPage() {
               const durationInSeconds = ledgerDiff * SECONDS_PER_LEDGER;
               const durationInDays = Math.max(
                 0,
-                Math.round(durationInSeconds / (24 * 60 * 60))
+                Math.round(durationInSeconds / (24 * 60 * 60)),
               );
 
               // Calculate approximate timestamp: current time - (current_ledger - created_at) * 5 seconds
@@ -361,7 +366,7 @@ export default function JobsPage() {
   const handleApply = async (
     job: Escrow,
     coverLetter: string,
-    proposedTimeline: string
+    proposedTimeline: string,
   ) => {
     if (!job || !wallet.isConnected) return;
 
@@ -411,7 +416,7 @@ export default function JobsPage() {
         try {
           const hasAppliedResult = await contractService.hasUserApplied(
             Number.parseInt(job.id, 10),
-            wallet.address
+            wallet.address,
           );
           userHasApplied = hasAppliedResult;
         } catch (error) {
@@ -466,9 +471,9 @@ export default function JobsPage() {
             jobTitle: job.projectDescription || `Job #${job.id}`,
             freelancerName:
               wallet.address!.slice(0, 6) + "..." + wallet.address!.slice(-4),
-          }
+          },
         ),
-        [job.payer] // Notify the client (job creator)
+        [job.payer], // Notify the client (job creator)
       );
 
       // coverLetter and proposedTimeline are handled in the dialog component
@@ -482,7 +487,8 @@ export default function JobsPage() {
       await countOngoingProjects();
     } catch (error: any) {
       const msg =
-        error?.message || "Could not submit your application. Please try again.";
+        error?.message ||
+        "Could not submit your application. Please try again.";
       toast({
         title: "Application Failed",
         description: msg,
@@ -500,7 +506,7 @@ export default function JobsPage() {
         ?.toLowerCase()
         .includes(searchQuery.toLowerCase()) ||
       job.milestones.some((m) =>
-        m.description.toLowerCase().includes(searchQuery.toLowerCase())
+        m.description.toLowerCase().includes(searchQuery.toLowerCase()),
       );
 
     // Status filter

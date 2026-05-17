@@ -1,5 +1,3 @@
-
-
 import { Card } from "@/components/ui/card";
 import { Wallet } from "lucide-react";
 

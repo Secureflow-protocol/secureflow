@@ -64,7 +64,8 @@ export function ProjectDetailsStep({
     if (!isApiConfigured()) {
       toast({
         title: "API not configured",
-        description: "Run the backend (npm run dev) for AI rewrite in local dev.",
+        description:
+          "Run the backend (npm run dev) for AI rewrite in local dev.",
         variant: "destructive",
       });
       return;

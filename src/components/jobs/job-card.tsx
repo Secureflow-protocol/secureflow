@@ -25,13 +25,19 @@ export function JobCard({
   ongoingProjectsCount,
   onApply,
 }: JobCardProps) {
-  const [clientRating, setClientRating] = useState<{ average: number; count: number } | null>(null);
+  const [clientRating, setClientRating] = useState<{
+    average: number;
+    count: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!job.payer) return;
     const svc = new ContractService(CONTRACTS.SECUREFLOW_ESCROW);
-    svc.getAverageClientRating(job.payer)
-      .then((r) => { if (r.count > 0) setClientRating(r); })
+    svc
+      .getAverageClientRating(job.payer)
+      .then((r) => {
+        if (r.count > 0) setClientRating(r);
+      })
       .catch(() => {});
   }, [job.payer]);
 
@@ -84,9 +90,14 @@ export function JobCard({
               {clientRating && (
                 <>
                   <span>•</span>
-                  <span className="flex items-center gap-1" title={`Client rated ${clientRating.average}/5 by ${clientRating.count} freelancer(s)`}>
+                  <span
+                    className="flex items-center gap-1"
+                    title={`Client rated ${clientRating.average}/5 by ${clientRating.count} freelancer(s)`}
+                  >
                     <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                    <span className="font-medium text-foreground">{clientRating.average.toFixed(1)}</span>
+                    <span className="font-medium text-foreground">
+                      {clientRating.average.toFixed(1)}
+                    </span>
                     <span className="text-xs">({clientRating.count})</span>
                   </span>
                 </>

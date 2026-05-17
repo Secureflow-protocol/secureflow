@@ -81,7 +81,9 @@ gaslessRouter.post("/apply", async (req, res) => {
 
     const normalizedXdr = normalizeSignedTxXdr(signedTxXdr);
     if (normalizedXdr.length < 48) {
-      res.status(400).json({ error: "signedTxXdr is too short to be valid XDR" });
+      res
+        .status(400)
+        .json({ error: "signedTxXdr is too short to be valid XDR" });
       return;
     }
 
@@ -89,10 +91,7 @@ gaslessRouter.post("/apply", async (req, res) => {
     const networkPassphrase = getNetworkPassphrase();
     const rpcServer = getRpcServer();
 
-    const parsed = TransactionBuilder.fromXDR(
-      normalizedXdr,
-      networkPassphrase,
-    );
+    const parsed = TransactionBuilder.fromXDR(normalizedXdr, networkPassphrase);
     const innerTx = requireInnerTransaction(parsed);
 
     const innerFeeRaw = innerTx.fee ?? "100";
@@ -132,12 +131,10 @@ gaslessRouter.post("/apply", async (req, res) => {
             return;
           }
           if (result.status === "FAILED") {
-            res
-              .status(500)
-              .json({
-                error: "Transaction failed on-chain",
-                txHash: sendResponse.hash,
-              });
+            res.status(500).json({
+              error: "Transaction failed on-chain",
+              txHash: sendResponse.hash,
+            });
             return;
           }
         } catch {
@@ -152,7 +149,8 @@ gaslessRouter.post("/apply", async (req, res) => {
 
     res.json({ txHash: sendResponse.hash ?? "" });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Gasless transaction failed";
+    const msg =
+      err instanceof Error ? err.message : "Gasless transaction failed";
     console.error("[gasless]", msg);
     if (err instanceof Error && err.stack) console.error(err.stack);
     res.status(500).json({ error: msg });

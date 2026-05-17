@@ -31,19 +31,19 @@ export function FreelancerStats({
 }: FreelancerStatsProps) {
   const totalEarnings = escrows.reduce(
     (sum, escrow) => sum + Number.parseFloat(escrow.releasedAmount),
-    0
+    0,
   );
 
   const totalValue = escrows.reduce(
     (sum, escrow) => sum + Number.parseFloat(escrow.totalAmount),
-    0
+    0,
   );
 
   // Helper function to check if an escrow is terminated
   const isEscrowTerminated = (escrow: any) => {
     return escrow.milestones.some(
       (milestone: any) =>
-        milestone.status === "disputed" || milestone.status === "rejected"
+        milestone.status === "disputed" || milestone.status === "rejected",
     );
   };
 
@@ -51,7 +51,7 @@ export function FreelancerStats({
     // A project is completed if all milestones are approved
     if (escrow.milestones.length === 0) return false;
     return escrow.milestones.every(
-      (milestone) => milestone.status === "approved"
+      (milestone) => milestone.status === "approved",
     );
   }).length;
 

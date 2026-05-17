@@ -1,5 +1,3 @@
-
-
 import { Card } from "@/components/ui/card";
 import { Briefcase, MessageSquare, User } from "lucide-react";
 

@@ -27,7 +27,9 @@ export async function generateMilestoneSuggestions(input: {
   }
 
   const idx =
-    input.milestoneIndex !== null ? input.milestoneIndex + 1 : "new / unspecified";
+    input.milestoneIndex !== null
+      ? input.milestoneIndex + 1
+      : "new / unspecified";
 
   const system = `You are helping structure freelance escrow milestones on Stellar/Soroban.
 Return ONLY valid JSON with this exact shape (no markdown):

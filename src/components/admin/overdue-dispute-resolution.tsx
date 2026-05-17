@@ -107,9 +107,7 @@ export function OverdueDisputeResolution({ onResolved }: Props) {
     try {
       const { ContractService } = await import("@/lib/web3/contract-service");
       const svc = new ContractService(CONTRACTS.SECUREFLOW_ESCROW);
-      const unreleasedStroops = BigInt(
-        Math.round(selected.unreleased * 1e7),
-      );
+      const unreleasedStroops = BigInt(Math.round(selected.unreleased * 1e7));
 
       if (fullRefundToClient) {
         await svc.arbiterApproveRefund({
@@ -152,7 +150,10 @@ export function OverdueDisputeResolution({ onResolved }: Props) {
           freelancer_amount: freelancerStroops,
         });
         const freelancerAmt = (Number(freelancerStroops) / 1e7).toFixed(2);
-        const clientAmt = (selected.unreleased - Number(freelancerStroops) / 1e7).toFixed(2);
+        const clientAmt = (
+          selected.unreleased -
+          Number(freelancerStroops) / 1e7
+        ).toFixed(2);
         toast({
           title: "Award applied",
           description: `${freelancerAmt} USDC to freelancer, ${clientAmt} USDC returned to client`,

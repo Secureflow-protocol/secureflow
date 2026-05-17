@@ -36,6 +36,7 @@ The project stood out for its complete end-to-end implementation: a Soroban smar
 SecureFlow solves the freelance trust problem. When you hire someone online today, you either pay upfront (and risk getting nothing) or pay after (and the freelancer risks getting stiffed). SecureFlow puts funds into a Soroban smart contract that neither party controls — it releases payment automatically when milestones are approved, or triggers dispute resolution when they're not.
 
 **Key properties:**
+
 - **Trustless** — no intermediary holds funds, the contract does
 - **Transparent** — all state is on-chain and auditable
 - **Fair** — multi-arbiter dispute resolution with on-chain reputation
@@ -47,17 +48,17 @@ SecureFlow solves the freelance trust problem. When you hire someone online toda
 
 ### Core
 
-| Feature | Description |
-|---|---|
-| **Smart Contract Escrow** | Funds locked in Soroban until milestone approval |
-| **Milestone Payments** | Break projects into chunks; each unlocks individually |
-| **Open Job Marketplace** | Freelancers browse and apply; clients pick the best fit |
-| **Direct Contracts** | Skip the marketplace and contract a known freelancer |
-| **Dispute Resolution** | Multi-arbiter voting with admin oversight |
-| **Reputation System** | On-chain star ratings and badge tiers (Beginner → Expert) |
-| **Multi-Token Support** | Native XLM or any whitelisted Stellar asset |
-| **Gasless Relay** | Backend relay lets users transact without holding XLM |
-| **Rating Notifications** | Real-time notification center for ratings and milestone events |
+| Feature                   | Description                                                    |
+| ------------------------- | -------------------------------------------------------------- |
+| **Smart Contract Escrow** | Funds locked in Soroban until milestone approval               |
+| **Milestone Payments**    | Break projects into chunks; each unlocks individually          |
+| **Open Job Marketplace**  | Freelancers browse and apply; clients pick the best fit        |
+| **Direct Contracts**      | Skip the marketplace and contract a known freelancer           |
+| **Dispute Resolution**    | Multi-arbiter voting with admin oversight                      |
+| **Reputation System**     | On-chain star ratings and badge tiers (Beginner → Expert)      |
+| **Multi-Token Support**   | Native XLM or any whitelisted Stellar asset                    |
+| **Gasless Relay**         | Backend relay lets users transact without holding XLM          |
+| **Rating Notifications**  | Real-time notification center for ratings and milestone events |
 
 ### Security
 
@@ -109,19 +110,19 @@ contracts/secureflow/src/
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Smart Contract | Rust, Soroban SDK |
-| Frontend Framework | React 19, TypeScript, Vite |
-| UI | Tailwind CSS, Radix UI, shadcn/ui |
-| State | Zustand |
-| Routing | React Router v7 |
-| Forms | React Hook Form + Zod |
-| Backend | Node.js, Express, Supabase |
-| AI | Groq (cover letter analysis) |
-| Wallet | @creit.tech/stellar-wallets-kit |
-| Toolchain | Stellar Scaffold CLI |
-| CI/CD | GitHub Actions, Vercel, Railway |
+| Layer              | Technology                        |
+| ------------------ | --------------------------------- |
+| Smart Contract     | Rust, Soroban SDK                 |
+| Frontend Framework | React 19, TypeScript, Vite        |
+| UI                 | Tailwind CSS, Radix UI, shadcn/ui |
+| State              | Zustand                           |
+| Routing            | React Router v7                   |
+| Forms              | React Hook Form + Zod             |
+| Backend            | Node.js, Express, Supabase        |
+| AI                 | Groq (cover letter analysis)      |
+| Wallet             | @creit.tech/stellar-wallets-kit   |
+| Toolchain          | Stellar Scaffold CLI              |
+| CI/CD              | GitHub Actions, Vercel, Railway   |
 
 ---
 
@@ -322,18 +323,18 @@ SecureFlow is an open-source project growing beyond the hackathon. We welcome co
 
 ### Labels
 
-| Label | Meaning |
-|---|---|
+| Label              | Meaning                                |
+| ------------------ | -------------------------------------- |
 | `good first issue` | Small, well-scoped — great entry point |
-| `contract` | Soroban / Rust smart contract work |
-| `frontend` | React / TypeScript UI work |
-| `backend` | Node.js / Express / Supabase work |
-| `security` | Security-critical changes |
-| `enhancement` | New features |
-| `bug` | Something broken |
-| `performance` | Speed / cost improvements |
-| `testing` | Test coverage |
-| `documentation` | Docs and guides |
+| `contract`         | Soroban / Rust smart contract work     |
+| `frontend`         | React / TypeScript UI work             |
+| `backend`          | Node.js / Express / Supabase work      |
+| `security`         | Security-critical changes              |
+| `enhancement`      | New features                           |
+| `bug`              | Something broken                       |
+| `performance`      | Speed / cost improvements              |
+| `testing`          | Test coverage                          |
+| `documentation`    | Docs and guides                        |
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before submitting.
 
@@ -341,11 +342,11 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_
 
 ## Deployment
 
-| Service | Purpose | Status |
-|---|---|---|
-| Vercel | Frontend hosting | [![Vercel](https://img.shields.io/badge/Vercel-deployed-black?logo=vercel)](https://secure-flow-scaffold.vercel.app) |
-| Railway | Backend API | Active |
-| Stellar Testnet | Smart contract | Active |
+| Service         | Purpose          | Status                                                                                                               |
+| --------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Vercel          | Frontend hosting | [![Vercel](https://img.shields.io/badge/Vercel-deployed-black?logo=vercel)](https://secure-flow-scaffold.vercel.app) |
+| Railway         | Backend API      | Active                                                                                                               |
+| Stellar Testnet | Smart contract   | Active                                                                                                               |
 
 ---
 

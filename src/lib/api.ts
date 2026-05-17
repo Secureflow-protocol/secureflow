@@ -27,10 +27,7 @@ export function isApiConfigured(): boolean {
   return Boolean(getApiBase());
 }
 
-async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const base = getApiBase();
   if (!base) {
     throw new Error("VITE_API_URL is not set (required for production builds)");
@@ -124,9 +121,9 @@ export type RemoteNotificationRow = {
   data?: Record<string, unknown>;
 };
 
-export async function getNotifications(wallet: string): Promise<
-  RemoteNotificationRow[]
-> {
+export async function getNotifications(
+  wallet: string,
+): Promise<RemoteNotificationRow[]> {
   const q = new URLSearchParams({ wallet });
   const json = await apiFetch<{ notifications: RemoteNotificationRow[] }>(
     `/v1/notifications?${q.toString()}`,
@@ -140,9 +137,12 @@ export async function patchNotificationRead(
   id: string,
 ): Promise<void> {
   const q = new URLSearchParams({ wallet });
-  await apiFetch(`/v1/notifications/${encodeURIComponent(id)}/read?${q.toString()}`, {
-    method: "PATCH",
-  });
+  await apiFetch(
+    `/v1/notifications/${encodeURIComponent(id)}/read?${q.toString()}`,
+    {
+      method: "PATCH",
+    },
+  );
 }
 
 export async function postNotification(body: {

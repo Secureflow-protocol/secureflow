@@ -75,7 +75,8 @@ export function ApplicationDialog({
     if (!isApiConfigured()) {
       toast({
         title: "API not configured",
-        description: "Set VITE_API_URL and run the SecureFlow API with GROQ_API_KEY.",
+        description:
+          "Set VITE_API_URL and run the SecureFlow API with GROQ_API_KEY.",
         variant: "destructive",
       });
       return;
@@ -83,7 +84,8 @@ export function ApplicationDialog({
     setAiLoading(true);
     try {
       const { coverLetter: next } = await postCoverLetterDraft({
-        jobTitle: job.projectTitle ?? job.projectDescription ?? `Job #${job.id}`,
+        jobTitle:
+          job.projectTitle ?? job.projectDescription ?? `Job #${job.id}`,
         jobDescription: desc,
         proposedTimelineDays: proposedTimeline.trim() || undefined,
         tone: "professional",
@@ -99,7 +101,11 @@ export function ApplicationDialog({
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Draft failed";
-      toast({ title: "AI unavailable", description: msg, variant: "destructive" });
+      toast({
+        title: "AI unavailable",
+        description: msg,
+        variant: "destructive",
+      });
     } finally {
       setAiLoading(false);
     }
@@ -114,7 +120,10 @@ export function ApplicationDialog({
     if (selectedFile && !uploadedFile && isApiConfigured()) {
       setUploading(true);
       try {
-        toast({ title: "Uploading attachment…", description: selectedFile.name });
+        toast({
+          title: "Uploading attachment…",
+          description: selectedFile.name,
+        });
         const result = await uploadMilestoneFile(selectedFile, job.id, 0);
         setUploadedFile(result);
         fileUrl = result.url;
@@ -144,7 +153,8 @@ export function ApplicationDialog({
       <DialogContent className="glass-thick w-[min(92vw,56rem)] max-w-4xl p-7">
         <DialogHeader className="space-y-2">
           <DialogTitle className="leading-snug">
-            Apply to {job?.projectTitle?.trim() || `Job #${job?.id || "Unknown"}`}
+            Apply to{" "}
+            {job?.projectTitle?.trim() || `Job #${job?.id || "Unknown"}`}
           </DialogTitle>
           <DialogDescription>
             Submit your application for this freelance opportunity.
@@ -165,8 +175,12 @@ export function ApplicationDialog({
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 {aiLoading
-                  ? hasUserText ? "Enhancing…" : "Drafting…"
-                  : hasUserText ? "Enhance with AI" : "Draft with AI"}
+                  ? hasUserText
+                    ? "Enhancing…"
+                    : "Drafting…"
+                  : hasUserText
+                    ? "Enhance with AI"
+                    : "Draft with AI"}
               </Button>
             </div>
             <Textarea
@@ -269,8 +283,8 @@ export function ApplicationDialog({
             {uploading
               ? "Uploading…"
               : applying
-              ? "Applying..."
-              : "Submit Application"}
+                ? "Applying..."
+                : "Submit Application"}
           </Button>
         </DialogFooter>
       </DialogContent>

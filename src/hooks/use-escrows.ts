@@ -52,7 +52,7 @@ export function useEscrows(escrowIds: number[]) {
     queryKey: ["escrows", escrowIds],
     queryFn: async () => {
       const escrows = await Promise.all(
-        escrowIds.map((id) => contractService.getEscrow(id))
+        escrowIds.map((id) => contractService.getEscrow(id)),
       );
       return escrows.filter((e): e is EscrowData => e !== null);
     },

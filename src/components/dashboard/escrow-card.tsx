@@ -6,7 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { Clock, DollarSign, ChevronDown, ChevronUp, Star, AlertTriangle, CalendarPlus, Scale, Paperclip, MessageCircle } from "lucide-react";
+import {
+  Clock,
+  DollarSign,
+  ChevronDown,
+  ChevronUp,
+  Star,
+  AlertTriangle,
+  CalendarPlus,
+  Scale,
+  Paperclip,
+  MessageCircle,
+} from "lucide-react";
 import { MilestoneActions } from "@/components/milestone-actions";
 import { parseAttachment } from "@/lib/utils";
 import { RatingDialog } from "@/components/rating/rating-dialog";
@@ -16,7 +27,6 @@ import { contractService } from "@/lib/web3/contract-service";
 import { useWeb3 } from "@/contexts/web3-context";
 import { isApiConfigured } from "@/lib/api";
 import type { Escrow } from "@/lib/web3/types";
-
 
 interface EscrowCardProps {
   escrow: Escrow;
@@ -86,8 +96,7 @@ export function EscrowCard({
             });
           }
         })
-        .catch((error) => {
-        });
+        .catch((error) => {});
     }
   }, [escrow.id, escrow.status, escrow.isClient]);
 
@@ -115,7 +124,7 @@ export function EscrowCard({
     (milestone) =>
       milestone.status === "disputed" ||
       milestone.status === "rejected" ||
-      milestone.status === "resolved"
+      milestone.status === "resolved",
   );
 
   const getMilestoneStatusColor = (status: string) => {
@@ -145,7 +154,7 @@ export function EscrowCard({
       : 0;
 
   const completedMilestones = escrow.milestones.filter(
-    (m) => m.status === "approved"
+    (m) => m.status === "approved",
   ).length;
   const totalMilestones = escrow.milestones.length;
 
@@ -181,24 +190,27 @@ export function EscrowCard({
             <div className="flex items-center gap-2">
               <Badge
                 className={getStatusColor(
-                  isTerminated ? "terminated" : escrow.status
+                  isTerminated ? "terminated" : escrow.status,
                 )}
               >
                 {isTerminated ? "terminated" : escrow.status}
               </Badge>
               {/* Message Freelancer — visible to client when a freelancer is assigned */}
-              {escrow.isClient && escrow.beneficiary && wallet.address && isApiConfigured() && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-xs"
-                  onClick={() => setChatOpen(true)}
-                  title="Message freelancer"
-                >
-                  <MessageCircle className="h-3.5 w-3.5" />
-                  Message
-                </Button>
-              )}
+              {escrow.isClient &&
+                escrow.beneficiary &&
+                wallet.address &&
+                isApiConfigured() && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    onClick={() => setChatOpen(true)}
+                    title="Message freelancer"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    Message
+                  </Button>
+                )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -249,7 +261,7 @@ export function EscrowCard({
                   {(() => {
                     const daysLeft = calculateDaysLeft(
                       escrow.createdAt,
-                      escrow.duration
+                      escrow.duration,
                     );
                     const message = getDaysLeftMessage(daysLeft);
                     return (
@@ -271,7 +283,9 @@ export function EscrowCard({
                     >
                       <div className="flex-1">
                         {(() => {
-                          const { body, attachment } = parseAttachment(milestone.description ?? "");
+                          const { body, attachment } = parseAttachment(
+                            milestone.description ?? "",
+                          );
                           return (
                             <>
                               <p className="text-sm font-medium">{body}</p>
@@ -291,7 +305,7 @@ export function EscrowCard({
                         })()}
                         <p className="text-xs text-muted-foreground">
                           {(Number.parseFloat(milestone.amount) / 1e7).toFixed(
-                            2
+                            2,
                           )}{" "}
                           tokens
                         </p>
@@ -318,11 +332,11 @@ export function EscrowCard({
                           onSuccess={async () => {
                             // Refresh the escrow data
                             window.dispatchEvent(
-                              new CustomEvent("escrowUpdated")
+                              new CustomEvent("escrowUpdated"),
                             );
                             // Wait a moment for blockchain state to update
                             await new Promise((resolve) =>
-                              setTimeout(resolve, 2000)
+                              setTimeout(resolve, 2000),
                             );
                             // Trigger refresh without reloading the page
                             // The parent component should listen to the event and refresh
@@ -336,113 +350,116 @@ export function EscrowCard({
             )}
 
             {/* Overdue actions — visible to BOTH client and freelancer */}
-            {isOverdue && isActive && !isSettled && (escrow.isClient || escrow.isFreelancer) && (
-              <div className="mt-4 pt-4 border-t border-orange-200 dark:border-orange-800 space-y-3">
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700">
-                  <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="font-medium text-orange-700 dark:text-orange-400">
-                      Project deadline has passed
-                    </p>
-                    <p className="text-orange-600/80 dark:text-orange-400/70 text-xs mt-0.5">
-                      {escrow.isClient
-                        ? "You may extend the deadline to give the freelancer more time, or raise a dispute for arbiter review."
-                        : "If the client is unresponsive, you can raise a dispute so an arbiter reviews the situation fairly."}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Client: extend with custom days */}
-                {escrow.isClient && onExtendDeadline && (
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1">
-                      <Label className="text-xs mb-1 block text-muted-foreground">
-                        Extend by (days)
-                      </Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={90}
-                        placeholder="e.g. 7"
-                        value={customDays}
-                        onChange={(e) => setCustomDays(e.target.value)}
-                        className="h-8 text-sm"
-                      />
+            {isOverdue &&
+              isActive &&
+              !isSettled &&
+              (escrow.isClient || escrow.isFreelancer) && (
+                <div className="mt-4 pt-4 border-t border-orange-200 dark:border-orange-800 space-y-3">
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700">
+                    <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-orange-700 dark:text-orange-400">
+                        Project deadline has passed
+                      </p>
+                      <p className="text-orange-600/80 dark:text-orange-400/70 text-xs mt-0.5">
+                        {escrow.isClient
+                          ? "You may extend the deadline to give the freelancer more time, or raise a dispute for arbiter review."
+                          : "If the client is unresponsive, you can raise a dispute so an arbiter reviews the situation fairly."}
+                      </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 shrink-0"
-                      disabled={!customDays || Number(customDays) < 1}
-                      onClick={() => {
-                        const days = parseInt(customDays, 10);
-                        if (days > 0) {
-                          onExtendDeadline(escrow.id, days);
-                          setCustomDays("");
-                        }
-                      }}
-                    >
-                      <CalendarPlus className="h-3.5 w-3.5" />
-                      Extend
-                    </Button>
                   </div>
-                )}
 
-                {/* Both: request arbitration */}
-                {onRaiseOverdueDispute && (
-                  <div>
-                    {!showDisputeForm ? (
+                  {/* Client: extend with custom days */}
+                  {escrow.isClient && onExtendDeadline && (
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Label className="text-xs mb-1 block text-muted-foreground">
+                          Extend by (days)
+                        </Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={90}
+                          placeholder="e.g. 7"
+                          value={customDays}
+                          onChange={(e) => setCustomDays(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1.5 w-full border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                        onClick={() => setShowDisputeForm(true)}
+                        className="gap-1.5 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 shrink-0"
+                        disabled={!customDays || Number(customDays) < 1}
+                        onClick={() => {
+                          const days = parseInt(customDays, 10);
+                          if (days > 0) {
+                            onExtendDeadline(escrow.id, days);
+                            setCustomDays("");
+                          }
+                        }}
                       >
-                        <Scale className="h-3.5 w-3.5" />
-                        Request Arbitration
+                        <CalendarPlus className="h-3.5 w-3.5" />
+                        Extend
                       </Button>
-                    ) : (
-                      <div className="space-y-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700">
-                        <p className="text-xs font-medium text-red-700 dark:text-red-400">
-                          State your case — arbiters will review both sides
-                        </p>
-                        <Textarea
-                          rows={3}
-                          placeholder="Describe the situation clearly — what work was done, what's missing, and what outcome you're requesting..."
-                          value={disputeReason}
-                          onChange={(e) => setDisputeReason(e.target.value)}
-                          className="text-sm"
-                        />
-                        <div className="flex gap-2 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setShowDisputeForm(false);
-                              setDisputeReason("");
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            disabled={!disputeReason.trim()}
-                            onClick={() => {
-                              onRaiseOverdueDispute(escrow.id, disputeReason);
-                              setShowDisputeForm(false);
-                              setDisputeReason("");
-                            }}
-                          >
-                            Submit to Arbiters
-                          </Button>
+                    </div>
+                  )}
+
+                  {/* Both: request arbitration */}
+                  {onRaiseOverdueDispute && (
+                    <div>
+                      {!showDisputeForm ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 w-full border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          onClick={() => setShowDisputeForm(true)}
+                        >
+                          <Scale className="h-3.5 w-3.5" />
+                          Request Arbitration
+                        </Button>
+                      ) : (
+                        <div className="space-y-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700">
+                          <p className="text-xs font-medium text-red-700 dark:text-red-400">
+                            State your case — arbiters will review both sides
+                          </p>
+                          <Textarea
+                            rows={3}
+                            placeholder="Describe the situation clearly — what work was done, what's missing, and what outcome you're requesting..."
+                            value={disputeReason}
+                            onChange={(e) => setDisputeReason(e.target.value)}
+                            className="text-sm"
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setShowDisputeForm(false);
+                                setDisputeReason("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={!disputeReason.trim()}
+                              onClick={() => {
+                                onRaiseOverdueDispute(escrow.id, disputeReason);
+                                setShowDisputeForm(false);
+                                setDisputeReason("");
+                              }}
+                            >
+                              Submit to Arbiters
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
             {/* Rating Section for Completed Escrows */}
             {escrow.status === "completed" && escrow.isClient && (
@@ -500,7 +517,7 @@ export function EscrowCard({
             // Refresh rating data for this escrow only
             try {
               const rating = await contractService.getRating(
-                Number.parseInt(escrow.id, 10)
+                Number.parseInt(escrow.id, 10),
               );
               if (rating) {
                 setExistingRating({
@@ -508,8 +525,7 @@ export function EscrowCard({
                   review: rating.review,
                 });
               }
-            } catch (error) {
-            }
+            } catch (error) {}
           }}
         />
       )}

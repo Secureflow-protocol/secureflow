@@ -54,7 +54,7 @@ export function MilestonesStep({
   const updateMilestone = (
     index: number,
     field: keyof Milestone,
-    value: string
+    value: string,
   ) => {
     const updated = [...milestones];
     updated[index] = { ...updated[index], [field]: value };
@@ -210,7 +210,7 @@ export function MilestonesStep({
                 {milestones
                   .reduce(
                     (sum, m) => sum + (Number.parseFloat(m.amount) || 0),
-                    0
+                    0,
                   )
                   .toFixed(2)}
               </div>

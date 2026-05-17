@@ -46,7 +46,11 @@ export function ClientRatingDialog({
 
   const handleSubmit = async () => {
     if (rating === 0) {
-      toast({ title: "Select a rating", description: "Please choose 1–5 stars.", variant: "destructive" });
+      toast({
+        title: "Select a rating",
+        description: "Please choose 1–5 stars.",
+        variant: "destructive",
+      });
       return;
     }
     setLoading(true);
@@ -70,7 +74,10 @@ export function ClientRatingDialog({
         );
       }
 
-      toast({ title: "Rating submitted!", description: "Thank you for rating this client." });
+      toast({
+        title: "Rating submitted!",
+        description: "Thank you for rating this client.",
+      });
       onOpenChange(false);
       onSuccess?.();
     } catch (err: any) {
@@ -90,7 +97,8 @@ export function ClientRatingDialog({
         <DialogHeader>
           <DialogTitle className="text-xl">Rate this Client</DialogTitle>
           <DialogDescription>
-            Share your experience working with this client to help other freelancers.
+            Share your experience working with this client to help other
+            freelancers.
           </DialogDescription>
         </DialogHeader>
 
@@ -130,10 +138,17 @@ export function ClientRatingDialog({
         />
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
             Cancel
           </Button>
-          <Button onClick={() => void handleSubmit()} disabled={loading || rating === 0}>
+          <Button
+            onClick={() => void handleSubmit()}
+            disabled={loading || rating === 0}
+          >
             {loading ? "Submitting…" : "Submit Rating"}
           </Button>
         </DialogFooter>

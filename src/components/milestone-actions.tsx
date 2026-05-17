@@ -110,7 +110,7 @@ export function MilestoneActions({
           txHash = await contract.send(
             "start_work",
             Number(escrowId),
-            wallet.address
+            wallet.address,
           );
           break;
         case "submit":
@@ -119,7 +119,7 @@ export function MilestoneActions({
             Number(escrowId),
             milestoneIndex,
             milestone.description,
-            wallet.address
+            wallet.address,
           );
           break;
         case "approve":
@@ -128,7 +128,7 @@ export function MilestoneActions({
             "@/lib/web3/contract-service"
           );
           const contractService = new ContractService(
-            CONTRACTS.SECUREFLOW_ESCROW
+            CONTRACTS.SECUREFLOW_ESCROW,
           );
           txHash = await contractService.approveMilestone({
             escrow_id: Number(escrowId),
@@ -142,7 +142,7 @@ export function MilestoneActions({
             "@/lib/web3/contract-service"
           );
           const rejectContractService = new RejectContractService(
-            CONTRACTS.SECUREFLOW_ESCROW
+            CONTRACTS.SECUREFLOW_ESCROW,
           );
           txHash = await rejectContractService.rejectMilestone({
             escrow_id: Number(escrowId),
@@ -162,7 +162,7 @@ export function MilestoneActions({
             "@/lib/web3/contract-service"
           );
           const disputeContractService = new DisputeContractService(
-            CONTRACTS.SECUREFLOW_ESCROW
+            CONTRACTS.SECUREFLOW_ESCROW,
           );
           txHash = await disputeContractService.disputeMilestone({
             escrow_id: Number(escrowId),
@@ -177,7 +177,7 @@ export function MilestoneActions({
             Number(escrowId),
             milestoneIndex,
             resubmitMessage || milestone.description,
-            wallet.address
+            wallet.address,
           );
           break;
       }
@@ -261,11 +261,16 @@ export function MilestoneActions({
           // Notify freelancer that the milestone was approved
           if (beneficiaryAddress) {
             addNotification(
-              createMilestoneNotification("approved", escrowId, milestoneIndex, {
-                clientName: wallet.address
-                  ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
-                  : "Client",
-              }),
+              createMilestoneNotification(
+                "approved",
+                escrowId,
+                milestoneIndex,
+                {
+                  clientName: wallet.address
+                    ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
+                    : "Client",
+                },
+              ),
               [beneficiaryAddress],
             );
           }
@@ -280,12 +285,17 @@ export function MilestoneActions({
           // Notify freelancer
           if (beneficiaryAddress) {
             addNotification(
-              createMilestoneNotification("rejected", escrowId, milestoneIndex, {
-                clientName: wallet.address
-                  ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
-                  : "Client",
-                reason: disputeReason,
-              }),
+              createMilestoneNotification(
+                "rejected",
+                escrowId,
+                milestoneIndex,
+                {
+                  clientName: wallet.address
+                    ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`
+                    : "Client",
+                  reason: disputeReason,
+                },
+              ),
               [beneficiaryAddress],
             );
           }
@@ -296,9 +306,14 @@ export function MilestoneActions({
           const otherParty = isPayer ? beneficiaryAddress : payerAddress;
           if (otherParty) {
             addNotification(
-              createMilestoneNotification("disputed", escrowId, milestoneIndex, {
-                reason: disputeReason,
-              }),
+              createMilestoneNotification(
+                "disputed",
+                escrowId,
+                milestoneIndex,
+                {
+                  reason: disputeReason,
+                },
+              ),
               [otherParty],
             );
           }

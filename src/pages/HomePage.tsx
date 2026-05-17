@@ -1,7 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Link } from "react-router-dom";
-import { ArrowRight, Shield, CheckCircle2, TrendingUp, Users, Star, BadgeCheck } from "lucide-react";
+import {
+  ArrowRight,
+  Shield,
+  CheckCircle2,
+  TrendingUp,
+  Users,
+  Star,
+  BadgeCheck,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useWeb3 } from "@/contexts/web3-context";
 import { CONTRACTS } from "@/lib/web3/config";
@@ -71,7 +79,6 @@ export default function HomePage() {
           continue;
         }
       }
-
 
       setStats({
         activeEscrows,
@@ -297,7 +304,8 @@ export default function HomePage() {
                     <h2 className="text-3xl md:text-4xl font-bold mb-3 text-balance leading-tight">
                       Need to hire a
                       <span className="bg-gradient-to-r from-accent to-primary bg-clip-text text-transparent">
-                        {" "}verified freelancer?
+                        {" "}
+                        verified freelancer?
                       </span>
                     </h2>
                     <p className="text-muted-foreground leading-relaxed">
@@ -309,7 +317,11 @@ export default function HomePage() {
 
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Link to="/freelancers">
-                      <Button size="lg" variant="outline" className="gap-2 border-accent/40 hover:border-accent hover:bg-accent/10 w-full sm:w-auto">
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        className="gap-2 border-accent/40 hover:border-accent hover:bg-accent/10 w-full sm:w-auto"
+                      >
                         Browse Freelancers
                         <ArrowRight className="h-4 w-4" />
                       </Button>
@@ -343,12 +355,16 @@ export default function HomePage() {
                     },
                   ].map(({ icon: Icon, color, bg, title, desc }) => (
                     <div key={title} className="flex items-start gap-4">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${bg}`}
+                      >
                         <Icon className={`h-4.5 w-4.5 ${color}`} />
                       </div>
                       <div>
                         <p className="font-semibold text-sm mb-0.5">{title}</p>
-                        <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {desc}
+                        </p>
                       </div>
                     </div>
                   ))}

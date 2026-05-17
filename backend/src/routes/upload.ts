@@ -31,62 +31,58 @@ const upload = multer({
   },
 });
 
-uploadRouter.post(
-  "/milestone",
-  upload.single("file"),
-  async (req, res) => {
-    const supabase = getSupabase();
-    if (!supabase) {
-      res.status(503).json({ error: "Storage not configured" });
-      return;
-    }
+uploadRouter.post("/milestone", upload.single("file"), async (req, res) => {
+  const supabase = getSupabase();
+  if (!supabase) {
+    res.status(503).json({ error: "Storage not configured" });
+    return;
+  }
 
-    const file = req.file;
-    if (!file) {
-      res.status(400).json({ error: "No file provided" });
-      return;
-    }
+  const file = req.file;
+  if (!file) {
+    res.status(400).json({ error: "No file provided" });
+    return;
+  }
 
-    const escrowId = String(req.body.escrow_id ?? "unknown");
-    const milestoneIndex = String(req.body.milestone_index ?? "0");
-    const ext = file.originalname.split(".").pop() ?? "bin";
-    const path = `${escrowId}/${milestoneIndex}/${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2)}.${ext}`;
+  const escrowId = String(req.body.escrow_id ?? "unknown");
+  const milestoneIndex = String(req.body.milestone_index ?? "0");
+  const ext = file.originalname.split(".").pop() ?? "bin";
+  const path = `${escrowId}/${milestoneIndex}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}.${ext}`;
 
-    // Ensure bucket exists (idempotent – ignore "already exists" errors)
-    await supabase.storage.createBucket(BUCKET, {
-      public: true,
-      allowedMimeTypes: Array.from(ALLOWED_MIME_TYPES),
-      fileSizeLimit: MAX_FILE_SIZE,
+  // Ensure bucket exists (idempotent – ignore "already exists" errors)
+  await supabase.storage.createBucket(BUCKET, {
+    public: true,
+    allowedMimeTypes: Array.from(ALLOWED_MIME_TYPES),
+    fileSizeLimit: MAX_FILE_SIZE,
+  });
+
+  const { error: uploadError } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, file.buffer, {
+      contentType: file.mimetype,
+      upsert: true, // upsert=true avoids duplicate-key errors on retry
     });
 
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, file.buffer, {
-        contentType: file.mimetype,
-        upsert: true, // upsert=true avoids duplicate-key errors on retry
-      });
+  if (uploadError) {
+    const hint =
+      uploadError.message.includes("row-level security") ||
+      uploadError.message.includes("violates")
+        ? " — ensure the Supabase storage RLS policy allows inserts, or use the service_role key"
+        : "";
+    res.status(500).json({ error: uploadError.message + hint });
+    return;
+  }
 
-    if (uploadError) {
-      const hint =
-        uploadError.message.includes("row-level security") ||
-        uploadError.message.includes("violates")
-          ? " — ensure the Supabase storage RLS policy allows inserts, or use the service_role key"
-          : "";
-      res.status(500).json({ error: uploadError.message + hint });
-      return;
-    }
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from(BUCKET).getPublicUrl(path);
-
-    res.status(201).json({
-      url: publicUrl,
-      filename: file.originalname,
-      size: file.size,
-      mimeType: file.mimetype,
-    });
-  },
-);
+  res.status(201).json({
+    url: publicUrl,
+    filename: file.originalname,
+    size: file.size,
+    mimeType: file.mimetype,
+  });
+});

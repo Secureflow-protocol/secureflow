@@ -73,7 +73,8 @@ export function ChatDialog({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const latestTimestampRef = useRef<string | undefined>(undefined);
 
-  const short = otherLabel ?? `${otherAddress.slice(0, 6)}…${otherAddress.slice(-4)}`;
+  const short =
+    otherLabel ?? `${otherAddress.slice(0, 6)}…${otherAddress.slice(-4)}`;
 
   const fetchMessages = useCallback(
     async (since?: string) => {

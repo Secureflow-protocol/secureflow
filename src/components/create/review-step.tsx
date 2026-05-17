@@ -39,7 +39,7 @@ export function ReviewStep({
   const isSmartAccountReady = false;
   const totalMilestoneAmount = formData.milestones.reduce(
     (sum, milestone) => sum + Number.parseFloat(milestone.amount || "0"),
-    0
+    0,
   );
 
   const isTotalValid =
@@ -51,9 +51,11 @@ export function ReviewStep({
   const hasInsufficientBalance =
     formData.useNativeToken && balance > 0 && budget > balance;
 
-  const tokenSymbol = formData.useNativeToken 
-    ? "Native XLM" 
-    : WHITELISTED_TOKENS.find(t => t.address === formData.token)?.symbol || formData.token || "Not selected";
+  const tokenSymbol = formData.useNativeToken
+    ? "Native XLM"
+    : WHITELISTED_TOKENS.find((t) => t.address === formData.token)?.symbol ||
+      formData.token ||
+      "Not selected";
 
   return (
     <Card className="glass border-primary/20 p-6">
@@ -74,13 +76,12 @@ export function ReviewStep({
               <Clock className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">{formData.duration} days</span>
             </div>
-          <div className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm">
-              {Number(formData.totalBudget || 0).toFixed(2)}{" "}
-              {tokenSymbol}
-            </span>
-          </div>
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm">
+                {Number(formData.totalBudget || 0).toFixed(2)} {tokenSymbol}
+              </span>
+            </div>
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">
@@ -136,7 +137,8 @@ export function ReviewStep({
             {hasInsufficientBalance && (
               <p className="text-sm text-destructive mt-3 flex items-center gap-1">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                Insufficient balance — you have {balance.toFixed(2)} XLM but need {budget.toFixed(2)} XLM
+                Insufficient balance — you have {balance.toFixed(2)} XLM but
+                need {budget.toFixed(2)} XLM
               </p>
             )}
           </div>
@@ -157,8 +159,7 @@ export function ReviewStep({
               ) {
                 try {
                   await onConfirm();
-                } catch (error) {
-                }
+                } catch (error) {}
               }
             }}
             disabled={

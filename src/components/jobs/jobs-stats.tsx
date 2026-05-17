@@ -20,7 +20,7 @@ export function JobsStats({
 }: JobsStatsProps) {
   const totalValue = jobs.reduce(
     (sum, job) => sum + Number.parseFloat(job.totalAmount),
-    0
+    0,
   );
 
   // `duration` is not consistently defined across pages (some pass seconds, some pass days).

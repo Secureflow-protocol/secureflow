@@ -86,8 +86,7 @@ export default function MessagesPage() {
 
   const filtered = conversations.filter(
     (c) =>
-      !search ||
-      c.other_address.toLowerCase().includes(search.toLowerCase()),
+      !search || c.other_address.toLowerCase().includes(search.toLowerCase()),
   );
 
   const totalUnread = conversations.reduce((s, c) => s + c.unread, 0);
@@ -189,7 +188,9 @@ export default function MessagesPage() {
                     >
                       <Card
                         className={`glass border-border/40 hover:border-primary/40 cursor-pointer transition-colors ${
-                          conv.unread > 0 ? "border-primary/30 bg-primary/5" : ""
+                          conv.unread > 0
+                            ? "border-primary/30 bg-primary/5"
+                            : ""
                         }`}
                         onClick={() => {
                           setActiveConv(conv);

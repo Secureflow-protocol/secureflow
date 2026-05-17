@@ -67,7 +67,3 @@ export interface NotificationConfig {
   pushService?: "firebase" | "onesignal" | "pusher";
   realTimeService?: "socketio" | "pusher" | "ably";
 }
-
-
-
-

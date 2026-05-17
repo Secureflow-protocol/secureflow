@@ -171,7 +171,7 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       isPending,
       signTransaction,
     }),
-    [state, isPending, signTransaction]
+    [state, isPending, signTransaction],
   );
 
   return <WalletContext value={contextValue}>{children}</WalletContext>;

@@ -68,13 +68,13 @@ export class StellarContract {
     // For Stellar, we need to build and sign the transaction
     // This will be handled by the wallet context
     throw new Error(
-      "send() method not implemented in StellarClient - use Web3Context.send() instead"
+      "send() method not implemented in StellarClient - use Web3Context.send() instead",
     );
   }
 }
 
 export function createStellarContract(
-  contractId: string
+  contractId: string,
 ): StellarContractClient {
   const contract = new StellarContract(contractId);
 

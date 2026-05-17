@@ -54,7 +54,6 @@ export function useAdminStatus() {
       const ownerStr = String(owner).toLowerCase().trim();
       const walletStr = (wallet.address || "").toLowerCase().trim();
 
-
       // Check if current wallet is the owner
       const ownerCheck = ownerStr === walletStr;
       setIsOwner(ownerCheck);
@@ -64,17 +63,16 @@ export function useAdminStatus() {
       if (wallet.address) {
         try {
           arbiterCheck = await contractService.isAuthorizedArbiter(
-            wallet.address
+            wallet.address,
           );
-        } catch (error) {
-        }
+        } catch (error) {}
       }
       setIsArbiter(arbiterCheck);
 
       // Also check if user has an active delegation granted TO their address
       const activeDelegations = getActiveDelegations();
       const hasDelegationForUser = activeDelegations.some(
-        (d) => d.delegatee.toLowerCase() === wallet.address?.toLowerCase()
+        (d) => d.delegatee.toLowerCase() === wallet.address?.toLowerCase(),
       );
 
       // User is admin if they are owner, arbiter, or have delegation

@@ -15,7 +15,7 @@ interface WalletStore extends State {
     address: string,
     network: "testnet" | "mainnet" | "local",
     walletType: string,
-    publicKey: string
+    publicKey: string,
   ) => void;
   disconnectWalletStore: () => void;
   updateConnectionStatus: (isConnected: boolean) => void;
@@ -35,7 +35,7 @@ const useWalletStore = create<WalletStore>()(
         address: string,
         network: "testnet" | "mainnet" | "local",
         walletType: string,
-        publicKey: string
+        publicKey: string,
       ) =>
         set({
           address,
@@ -59,8 +59,8 @@ const useWalletStore = create<WalletStore>()(
     {
       name: "wallet-storage",
       storage: createJSONStorage(() => localStorage),
-    }
-  )
+    },
+  ),
 );
 
 export default useWalletStore;

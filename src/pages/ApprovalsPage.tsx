@@ -13,12 +13,18 @@ import {
 import type { Escrow, Application } from "@/lib/web3/types";
 
 /** Pull the [Portfolio/Attachment: name](url) block out of a cover letter. */
-function parseCoverLetter(text: string): { body: string; attachment?: { name: string; url: string } } {
+function parseCoverLetter(text: string): {
+  body: string;
+  attachment?: { name: string; url: string };
+} {
   const re = /\[Portfolio\/Attachment:\s*([^\]]+)\]\((https?:\/\/[^)]+)\)/i;
   const match = re.exec(text);
   if (!match) return { body: text };
   return {
-    body: text.replace(match[0], "").replace(/\n{3,}/g, "\n\n").trim(),
+    body: text
+      .replace(match[0], "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim(),
     attachment: { name: match[1].trim(), url: match[2].trim() },
   };
 }
@@ -46,7 +52,7 @@ export default function ApprovalsPage() {
   const [jobs, setJobs] = useState<JobWithApplications[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<JobWithApplications | null>(
-    null
+    null,
   );
   const [selectedFreelancer, setSelectedFreelancer] =
     useState<Application | null>(null);
@@ -62,7 +68,7 @@ export default function ApprovalsPage() {
   const [, setIsApproving] = useState(false); // Used in handlers
 
   const getStatusFromNumber = (
-    status: number
+    status: number,
   ): "pending" | "active" | "completed" | "disputed" => {
     switch (status) {
       case 0:
@@ -126,7 +132,6 @@ export default function ApprovalsPage() {
             escrow.creator.toLowerCase().trim() ===
               wallet.address.toLowerCase().trim();
 
-
           if (isMyJob) {
             // Check if it's an open job (beneficiary is zero address)
             const isOpenJob =
@@ -134,7 +139,6 @@ export default function ApprovalsPage() {
               escrow.freelancer ===
                 "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF" ||
               escrow.freelancer === "";
-
 
             if (isOpenJob) {
               let applicationCount = 0;
@@ -166,7 +170,6 @@ export default function ApprovalsPage() {
                     ratingCount: app.ratingCount,
                   });
                 }
-
               } catch (error) {
                 applicationCount = 0;
               }
@@ -179,7 +182,7 @@ export default function ApprovalsPage() {
               const durationInSeconds = ledgerDiff * SECONDS_PER_LEDGER;
               const durationInDays = Math.max(
                 0,
-                durationInSeconds / (24 * 60 * 60)
+                durationInSeconds / (24 * 60 * 60),
               );
 
               // Calculate approximate timestamp: current time - (current_ledger - created_at) * 5 seconds
@@ -230,7 +233,6 @@ export default function ApprovalsPage() {
   };
 
   const handleApproveFreelancer = async () => {
-
     if (!selectedJobForApproval || !selectedFreelancer || !wallet.isConnected) {
       toast({
         title: "Error",
@@ -256,13 +258,11 @@ export default function ApprovalsPage() {
       const { ContractService } = await import("@/lib/web3/contract-service");
       const contractService = new ContractService(CONTRACTS.SECUREFLOW_ESCROW);
 
-
       await contractService.acceptFreelancer({
         escrow_id: Number(selectedJobForApproval.id),
         freelancer: selectedFreelancer.freelancerAddress,
         depositor: wallet.address,
       });
-
 
       toast({
         title: "Freelancer Approved",
@@ -283,9 +283,9 @@ export default function ApprovalsPage() {
               selectedFreelancer.freelancerAddress.slice(0, 6) +
               "..." +
               selectedFreelancer.freelancerAddress.slice(-4),
-          }
+          },
         ),
-        [selectedFreelancer.freelancerAddress] // Notify the freelancer
+        [selectedFreelancer.freelancerAddress], // Notify the freelancer
       );
 
       // Close modals first
@@ -425,7 +425,7 @@ export default function ApprovalsPage() {
               }}
               onApprove={(freelancer: string) => {
                 const application = job.applications.find(
-                  (app) => app.freelancerAddress === freelancer
+                  (app) => app.freelancerAddress === freelancer,
                 );
                 if (application) {
                   setSelectedJobForApproval(job); // Store job data for approval
@@ -518,10 +518,14 @@ export default function ApprovalsPage() {
                         <div>
                           <p className="font-medium">Cover Letter:</p>
                           {(() => {
-                            const { body, attachment } = parseCoverLetter(application.coverLetter ?? "");
+                            const { body, attachment } = parseCoverLetter(
+                              application.coverLetter ?? "",
+                            );
                             return (
                               <>
-                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{body}</p>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                  {body}
+                                </p>
                                 {attachment && (
                                   <a
                                     href={attachment.url}

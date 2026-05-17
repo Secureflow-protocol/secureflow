@@ -1,8 +1,8 @@
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 /**
@@ -10,12 +10,20 @@ export function cn(...inputs: ClassValue[]) {
  * Handles both `[Attachment: name](url)` (milestones) and
  * `[Portfolio/Attachment: name](url)` (job applications).
  */
-export function parseAttachment(text: string): { body: string; text: string; attachment?: { name: string; url: string } } {
+export function parseAttachment(text: string): {
+  body: string;
+  text: string;
+  attachment?: { name: string; url: string };
+} {
   // Match either variant: [Attachment: …] or [Portfolio/Attachment: …]
-  const re = /\[(?:Portfolio\/)?Attachment:\s*([^\]]+)\]\((https?:\/\/[^)]+)\)/i;
+  const re =
+    /\[(?:Portfolio\/)?Attachment:\s*([^\]]+)\]\((https?:\/\/[^)]+)\)/i;
   const match = re.exec(text);
   if (!match) return { body: text, text };
-  const body = text.replace(match[0], "").replace(/\n{3,}/g, "\n\n").trim();
+  const body = text
+    .replace(match[0], "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   return {
     body,
     text: body,

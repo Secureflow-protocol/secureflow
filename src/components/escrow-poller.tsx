@@ -36,10 +36,10 @@ export function EscrowPoller() {
 
       try {
         const contractService = new ContractService(
-          CONTRACTS.SECUREFLOW_ESCROW
+          CONTRACTS.SECUREFLOW_ESCROW,
         );
         const ids: number[] = await contractService.getUserEscrows(
-          wallet.address!
+          wallet.address!,
         );
         if (!Array.isArray(ids)) return;
 
@@ -57,7 +57,6 @@ export function EscrowPoller() {
           dispatch();
           return;
         }
-
       } catch {
         // Silent safety poll; ignore transient RPC failures.
       }

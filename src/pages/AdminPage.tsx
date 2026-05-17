@@ -23,7 +23,16 @@ import { useWeb3 } from "@/contexts/web3-context";
 
 // Unused imports removed: AdminHeader, AdminStats, ContractControls, AdminLoading
 // Dispute panels moved to dedicated /disputes page
-import { Lock, Shield, Play, Pause, AlertTriangle, User, Scale, UserX } from "lucide-react";
+import {
+  Lock,
+  Shield,
+  Play,
+  Pause,
+  AlertTriangle,
+  User,
+  Scale,
+  UserX,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -78,10 +87,14 @@ export default function AdminPage() {
     "pause" | "unpause" | "authorizeArbiter" | "removeArbiter" | null
   >(null);
   const [arbiterToRemove, setArbiterToRemove] = useState<string | null>(null);
-  const [authorizedArbiterList, setAuthorizedArbiterList] = useState<string[]>([]);
+  const [authorizedArbiterList, setAuthorizedArbiterList] = useState<string[]>(
+    [],
+  );
   const [arbiterAddress, setArbiterAddress] = useState("");
   const [tokenToWhitelist, setTokenToWhitelist] = useState("");
-  const [whitelistedTokenList, setWhitelistedTokenList] = useState<string[]>([]);
+  const [whitelistedTokenList, setWhitelistedTokenList] = useState<string[]>(
+    [],
+  );
   const [withdrawToken, setWithdrawToken] = useState("");
   const [withdrawTo, setWithdrawTo] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -127,12 +140,14 @@ export default function AdminPage() {
 
   const fetchContractStats = async () => {
     try {
-      const [platformFeeBP, totalEscrows, arbiters, tokens] = await Promise.all([
-        contractService.getPlatformFeeBP(),
-        contractService.getTotalEscrows(),
-        contractService.getAuthorizedArbiters(),
-        contractService.getWhitelistedTokens(),
-      ]);
+      const [platformFeeBP, totalEscrows, arbiters, tokens] = await Promise.all(
+        [
+          contractService.getPlatformFeeBP(),
+          contractService.getTotalEscrows(),
+          contractService.getAuthorizedArbiters(),
+          contractService.getWhitelistedTokens(),
+        ],
+      );
       setWhitelistedTokenList(tokens);
       setAuthorizedArbiterList(arbiters);
       setContractStats({
@@ -156,7 +171,9 @@ export default function AdminPage() {
   };
 
   const short = (addr: string, left = 10, right = 8) =>
-    addr.length > left + right ? `${addr.slice(0, left)}…${addr.slice(-right)}` : addr;
+    addr.length > left + right
+      ? `${addr.slice(0, left)}…${addr.slice(-right)}`
+      : addr;
 
   const copy = async (text: string, label: string) => {
     try {
@@ -176,7 +193,7 @@ export default function AdminPage() {
     try {
       // Pass the wallet address to the contract service
       const paused = await contractService.isJobCreationPaused(
-        wallet.address || undefined
+        wallet.address || undefined,
       );
       setIsPaused(paused);
     } catch (error) {
@@ -206,7 +223,7 @@ export default function AdminPage() {
           // Check if contract is already paused
           const currentPausedStatusForPause =
             await contractService.isJobCreationPaused(
-              wallet.address || undefined
+              wallet.address || undefined,
             );
 
           if (currentPausedStatusForPause) {
@@ -222,7 +239,7 @@ export default function AdminPage() {
           // Check if user is owner
           if (contractOwner && wallet.address !== contractOwner) {
             throw new Error(
-              `Only the contract owner (${contractOwner.slice(0, 8)}...) can pause the contract. Your wallet: ${wallet.address?.slice(0, 8)}...`
+              `Only the contract owner (${contractOwner.slice(0, 8)}...) can pause the contract. Your wallet: ${wallet.address?.slice(0, 8)}...`,
             );
           }
 
@@ -235,7 +252,7 @@ export default function AdminPage() {
         case "unpause":
           // Check if contract is already unpaused
           const currentPausedStatus = await contractService.isJobCreationPaused(
-            wallet.address || undefined
+            wallet.address || undefined,
           );
 
           if (!currentPausedStatus) {
@@ -251,7 +268,7 @@ export default function AdminPage() {
           // Check if user is owner
           if (contractOwner && wallet.address !== contractOwner) {
             throw new Error(
-              `Only the contract owner (${contractOwner.slice(0, 8)}...) can unpause the contract. Your wallet: ${wallet.address?.slice(0, 8)}...`
+              `Only the contract owner (${contractOwner.slice(0, 8)}...) can unpause the contract. Your wallet: ${wallet.address?.slice(0, 8)}...`,
             );
           }
 
@@ -678,16 +695,21 @@ export default function AdminPage() {
                       <Shield className="h-6 w-6 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-xl font-bold mb-2">Token Whitelist</h3>
+                      <h3 className="text-xl font-bold mb-2">
+                        Token Whitelist
+                      </h3>
                       <p className="text-sm text-muted-foreground leading-relaxed">
-                        Whitelist a Soroban token contract address (C...) for escrow payments.
+                        Whitelist a Soroban token contract address (C...) for
+                        escrow payments.
                       </p>
                     </div>
                   </div>
 
                   <div className="space-y-3">
                     <div className="space-y-2">
-                      <Label htmlFor="whitelistToken">Token Contract Address</Label>
+                      <Label htmlFor="whitelistToken">
+                        Token Contract Address
+                      </Label>
                       <Input
                         id="whitelistToken"
                         value={tokenToWhitelist}
@@ -701,7 +723,9 @@ export default function AdminPage() {
                         if (!tokenToWhitelist.trim()) return;
                         setActionLoading(true);
                         try {
-                          await contractService.whitelistToken(tokenToWhitelist.trim());
+                          await contractService.whitelistToken(
+                            tokenToWhitelist.trim(),
+                          );
                           toast({
                             title: "Token whitelisted",
                             description: short(tokenToWhitelist.trim()),
@@ -731,7 +755,9 @@ export default function AdminPage() {
                       </p>
                       <div className="space-y-2">
                         {whitelistedTokenList.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No whitelisted tokens found.</p>
+                          <p className="text-sm text-muted-foreground">
+                            No whitelisted tokens found.
+                          </p>
                         ) : (
                           whitelistedTokenList.slice(0, 6).map((t) => (
                             <button
@@ -757,18 +783,26 @@ export default function AdminPage() {
                     <Scale className="h-6 w-6 text-destructive" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-xl font-bold mb-2">Withdraw Stuck Funds</h3>
+                    <h3 className="text-xl font-bold mb-2">
+                      Withdraw Stuck Funds
+                    </h3>
                     <p className="text-sm text-muted-foreground leading-relaxed">
-                      Emergency recovery if someone accidentally transfers tokens to the contract.
-                      This can only withdraw the <span className="text-foreground font-medium">excess</span>{" "}
-                      above what’s currently escrowed, so it cannot drain active escrows.
+                      Emergency recovery if someone accidentally transfers
+                      tokens to the contract. This can only withdraw the{" "}
+                      <span className="text-foreground font-medium">
+                        excess
+                      </span>{" "}
+                      above what’s currently escrowed, so it cannot drain active
+                      escrows.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="withdraw-token">Token Contract (C...)</Label>
+                    <Label htmlFor="withdraw-token">
+                      Token Contract (C...)
+                    </Label>
                     <Input
                       id="withdraw-token"
                       value={withdrawToken}
@@ -788,7 +822,9 @@ export default function AdminPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="withdraw-amount">Amount (i128 stroops)</Label>
+                    <Label htmlFor="withdraw-amount">
+                      Amount (i128 stroops)
+                    </Label>
                     <Input
                       id="withdraw-amount"
                       value={withdrawAmount}
@@ -819,7 +855,8 @@ export default function AdminPage() {
                         });
                         toast({
                           title: "Withdraw submitted",
-                          description: "Transaction sent. Funds will transfer after confirmation.",
+                          description:
+                            "Transaction sent. Funds will transfer after confirmation.",
                         });
                         setWithdrawAmount("");
                       } catch (e: any) {
@@ -839,17 +876,23 @@ export default function AdminPage() {
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-muted-foreground">
                     <div className="bg-muted/30 border border-border/40 rounded-lg p-3">
                       <p className="font-medium text-foreground mb-1">Step 1</p>
-                      <p>Paste the token contract (C...). For USDC testnet: use the whitelisted USDC contract.</p>
+                      <p>
+                        Paste the token contract (C...). For USDC testnet: use
+                        the whitelisted USDC contract.
+                      </p>
                     </div>
                     <div className="bg-muted/30 border border-border/40 rounded-lg p-3">
                       <p className="font-medium text-foreground mb-1">Step 2</p>
-                      <p>Set the recipient (your treasury / owner wallet G...).</p>
+                      <p>
+                        Set the recipient (your treasury / owner wallet G...).
+                      </p>
                     </div>
                     <div className="bg-muted/30 border border-border/40 rounded-lg p-3">
                       <p className="font-medium text-foreground mb-1">Step 3</p>
                       <p>
-                        Amount is base units. For 7-decimal tokens: <span className="font-mono">1.00</span>{" "}
-                        = <span className="font-mono">10000000</span>.
+                        Amount is base units. For 7-decimal tokens:{" "}
+                        <span className="font-mono">1.00</span> ={" "}
+                        <span className="font-mono">10000000</span>.
                       </p>
                     </div>
                   </div>
@@ -869,7 +912,10 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    void copy(contractOwner || wallet.address || "", "Owner address")
+                    void copy(
+                      contractOwner || wallet.address || "",
+                      "Owner address",
+                    )
                   }
                   className="w-full text-left font-mono text-sm bg-muted/50 p-3 rounded-lg hover:bg-muted/70 transition-colors"
                   title="Click to copy"
@@ -910,7 +956,10 @@ export default function AdminPage() {
                   Network
                 </Label>
                 <p className="text-sm bg-muted/50 p-3 rounded-lg">
-                  Stellar {(import.meta.env.VITE_STELLAR_NETWORK || "testnet").toString()}
+                  Stellar{" "}
+                  {(
+                    import.meta.env.VITE_STELLAR_NETWORK || "testnet"
+                  ).toString()}
                 </p>
               </div>
               <div>

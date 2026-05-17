@@ -1,5 +1,3 @@
-
-
 import { Card } from "@/components/ui/card";
 import { Shield, Lock } from "lucide-react";
 

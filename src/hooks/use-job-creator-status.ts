@@ -43,7 +43,6 @@ export function useJobCreatorStatus() {
             continue;
           }
 
-
           // Extract creator address from escrow
           // EscrowData has a 'creator' field
           const depositorAddress = escrow.creator;

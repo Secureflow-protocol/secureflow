@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,7 +58,8 @@ export function EscrowCard({
   useEffect(() => {
     if (!isCompleted || !escrow.payer) return;
     const svc = new ContractService(CONTRACTS.SECUREFLOW_ESCROW);
-    svc.getClientRating(Number(escrow.id))
+    svc
+      .getClientRating(Number(escrow.id))
       .then((r) => setHasClientRating(!!r))
       .catch(() => {});
   }, [escrow.id, isCompleted, escrow.payer]);

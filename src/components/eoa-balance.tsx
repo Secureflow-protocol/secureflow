@@ -1,5 +1,3 @@
-
-
 import { useWeb3 } from "@/contexts/web3-context";
 import { Card } from "@/components/ui/card";
 
@@ -19,6 +17,3 @@ export function EOABalance() {
     </Card>
   );
 }
-
-
-

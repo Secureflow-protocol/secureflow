@@ -98,7 +98,7 @@ export function DisputeResolution({
               const milestone = await contract.call(
                 "milestones",
                 escrowId,
-                milestoneIndex
+                milestoneIndex,
               );
               const milestoneStatus = Number(milestone[2]); // status is at index 2
 
@@ -130,7 +130,7 @@ export function DisputeResolution({
                 const milestone = await contract.call(
                   "milestones",
                   escrowId,
-                  milestoneIndex
+                  milestoneIndex,
                 );
                 const milestoneStatus = Number(milestone[2]); // status is at index 2
 
@@ -208,7 +208,7 @@ export function DisputeResolution({
         "no-value",
         selectedDispute.escrowId,
         selectedDispute.milestoneIndex,
-        beneficiaryAmountWei
+        beneficiaryAmountWei,
       );
 
       toast({
@@ -231,7 +231,7 @@ export function DisputeResolution({
           },
         },
         selectedDispute.clientAddress,
-        selectedDispute.freelancerAddress
+        selectedDispute.freelancerAddress,
       );
 
       setResolutionDialogOpen(false);
