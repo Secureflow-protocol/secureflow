@@ -1,0 +1,55 @@
+name: Contract Issue
+description: Report a smart contract issue or security consideration
+title: "[Contract]: "
+labels: ["contract", "security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report a smart contract issue. For critical security vulnerabilities, please email the maintainers directly instead of opening a public issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the contract issue or vulnerability
+      placeholder: The `releaseFunds` function does not validate...
+    validations:
+      required: true
+
+  - type: input
+    id: function
+    attributes:
+      label: Affected Function(s)
+      description: Which contract function(s) are affected?
+      placeholder: release_funds, dispute_resolve
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Security Implications
+      description: What could go wrong? Could funds be locked, stolen, or misrouted?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction (Soroban)
+      description: Steps to reproduce, including contract invocation arguments
+      placeholder: |
+        ```bash
+        stellar contract invoke \
+          --id CONTRACT_ID \
+          --source SOURCE_ACCOUNT \
+          -- release_funds \
+          --milestone_id 0
+        ```
+
+  - type: textarea
+    id: fix
+    attributes:
+      label: Suggested Fix
+      description: How would you fix this issue?
