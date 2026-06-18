@@ -62,20 +62,14 @@ aiRouter.post("/cover-letter", validateBody(postCoverLetterBody), async (req, re
   }
 });
 
-aiRouter.post("/rewrite", async (req, res) => {
+aiRouter.post("/rewrite", validateBody(postRewriteBody), async (req, res) => {
   try {
-    const { text = "" } = req.body ?? {};
-
-    if (!String(text).trim()) {
-      res.status(400).json({ error: "text is required" });
-      return;
-    }
-
-    const rewritten = await rewriteProjectDescription({ text: String(text) });
+    const { text } = req.body;
+    const rewritten = await rewriteProjectDescription({ text });
     res.json({ text: rewritten });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "AI rewrite failed";
     const status = msg.includes("GROQ_API_KEY") ? 503 : 500;
-    res.status(status).json({ error: msg });
+    res.status(status).json({ error: status === 503 ? "AI service not configured" : "AI rewrite failed" });
   }
 });
