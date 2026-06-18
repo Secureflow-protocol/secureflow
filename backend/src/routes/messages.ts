@@ -152,32 +152,32 @@ messagesRouter.get(
 );
 
 // GET /v1/messages/unread-count?wallet=ADDR — total unread count for badge
-messagesRouter.get("/unread-count", async (req, res) => {
-  const supabase = getSupabase();
-  if (!supabase) {
-    res.json({ count: 0 });
-    return;
-  }
+messagesRouter.get(
+  "/unread-count",
+  validateQuery(getUnreadCountQuery),
+  async (req, res) => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      res.json({ count: 0 });
+      return;
+    }
 
-  const wallet = String(req.query.wallet ?? "").trim();
-  if (!STELLAR_ADDR.test(wallet)) {
-    res.status(400).json({ error: "wallet must be a valid Stellar G-address" });
-    return;
-  }
+    const wallet = String(req.query.wallet ?? "").trim();
 
-  const { count, error } = await supabase
-    .from("messages")
-    .select("id", { count: "exact", head: true })
-    .eq("recipient_address", wallet)
-    .is("read_at", null);
+    const { count, error } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("recipient_address", wallet)
+      .is("read_at", null);
 
-  if (error) {
-    res.status(500).json({ error: error.message });
-    return;
-  }
+    if (error) {
+      internalError(res);
+      return;
+    }
 
-  res.json({ count: count ?? 0 });
-});
+    res.json({ count: count ?? 0 });
+  },
+);
 
 // PATCH /v1/messages/conversation/read?a=ADDR1&b=ADDR2&wallet=ADDR — mark all messages in thread as read
 messagesRouter.patch("/conversation/read", async (req, res) => {
