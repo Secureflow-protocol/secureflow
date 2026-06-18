@@ -1,64 +1,47 @@
 import { Router } from "express";
 import { getSupabase } from "../lib/supabase.js";
+import { internalError, serviceUnavailable } from "../lib/errors.js";
+import { validateBody, validateQuery } from "../middleware/validate.js";
+import {
+  postMessageBody,
+  getConversationQuery,
+  getInboxQuery,
+  getUnreadCountQuery,
+  patchConversationReadQuery,
+  patchMessageReadParams,
+  patchMessageReadQuery,
+} from "../schemas/messages.js";
 
 export const messagesRouter = Router();
-
-const STELLAR_ADDR = /^G[A-Z0-9]{55}$/;
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function conversationId(a: string, b: string): string {
   return [a, b].sort().join(":");
 }
 
 // POST /v1/messages — send a message
-messagesRouter.post("/", async (req, res) => {
+messagesRouter.post("/", validateBody(postMessageBody), async (req, res) => {
   const supabase = getSupabase();
   if (!supabase) {
-    res.status(503).json({ error: "Messages store not configured" });
+    serviceUnavailable(res, "Messages store");
     return;
   }
 
-  const { sender_address, recipient_address, content } = req.body ?? {};
-
-  if (
-    !sender_address ||
-    !STELLAR_ADDR.test(String(sender_address)) ||
-    !recipient_address ||
-    !STELLAR_ADDR.test(String(recipient_address))
-  ) {
-    res.status(400).json({
-      error:
-        "sender_address and recipient_address must be valid Stellar G-addresses",
-    });
-    return;
-  }
-
-  if (!content || typeof content !== "string" || !content.trim()) {
-    res.status(400).json({ error: "content is required" });
-    return;
-  }
-
-  if (sender_address === recipient_address) {
-    res.status(400).json({ error: "Cannot message yourself" });
-    return;
-  }
-
+  const { sender_address, recipient_address, content } = req.body;
   const convId = conversationId(sender_address, recipient_address);
 
   const { data, error } = await supabase
     .from("messages")
     .insert({
       conversation_id: convId,
-      sender_address: String(sender_address),
-      recipient_address: String(recipient_address),
-      content: content.trim().slice(0, 4000),
+      sender_address,
+      recipient_address,
+      content: content.trim(),
     })
     .select("id, created_at")
     .single();
 
   if (error) {
-    res.status(500).json({ error: error.message });
+    internalError(res);
     return;
   }
 
