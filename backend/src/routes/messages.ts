@@ -88,69 +88,68 @@ messagesRouter.get(
 );
 
 // GET /v1/messages/inbox?wallet=ADDR — list all conversations with latest message + unread count
-messagesRouter.get("/inbox", async (req, res) => {
-  const supabase = getSupabase();
-  if (!supabase) {
-    res.json({ conversations: [] });
-    return;
-  }
-
-  const wallet = String(req.query.wallet ?? "").trim();
-  if (!STELLAR_ADDR.test(wallet)) {
-    res.status(400).json({ error: "wallet must be a valid Stellar G-address" });
-    return;
-  }
-
-  // Fetch messages where user is sender OR recipient, ordered by newest first
-  const { data, error } = await supabase
-    .from("messages")
-    .select(
-      "id, conversation_id, sender_address, recipient_address, content, read_at, created_at",
-    )
-    .or(`sender_address.eq.${wallet},recipient_address.eq.${wallet}`)
-    .order("created_at", { ascending: false })
-    .limit(500);
-
-  if (error) {
-    res.status(500).json({ error: error.message });
-    return;
-  }
-
-  // Group by conversation, keep latest message + unread count
-  const convMap = new Map<
-    string,
-    {
-      conversation_id: string;
-      other_address: string;
-      latest_message: string;
-      latest_at: string;
-      unread: number;
+messagesRouter.get(
+  "/inbox",
+  validateQuery(getInboxQuery),
+  async (req, res) => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      res.json({ conversations: [] });
+      return;
     }
-  >();
 
-  for (const row of data ?? []) {
-    const other =
-      row.sender_address === wallet
-        ? row.recipient_address
-        : row.sender_address;
-    if (!convMap.has(row.conversation_id)) {
-      convMap.set(row.conversation_id, {
-        conversation_id: row.conversation_id,
-        other_address: other,
-        latest_message: row.content,
-        latest_at: row.created_at,
-        unread: 0,
-      });
-    }
-    // Count unread: messages sent TO this wallet that have no read_at
-    if (row.recipient_address === wallet && !row.read_at) {
-      const entry = convMap.get(row.conversation_id)!;
-      entry.unread++;
-    }
-  }
+    const wallet = String(req.query.wallet ?? "").trim();
 
-  res.json({ conversations: Array.from(convMap.values()) });
-});
+    // Fetch messages where user is sender OR recipient, ordered by newest first
+    const { data, error } = await supabase
+      .from("messages")
+      .select(
+        "id, conversation_id, sender_address, recipient_address, content, read_at, created_at",
+      )
+      .or(`sender_address.eq.${wallet},recipient_address.eq.${wallet}`)
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    if (error) {
+      internalError(res);
+      return;
+    }
+
+    // Group by conversation, keep latest message + unread count
+    const convMap = new Map<
+      string,
+      {
+        conversation_id: string;
+        other_address: string;
+        latest_message: string;
+        latest_at: string;
+        unread: number;
+      }
+    >();
+
+    for (const row of data ?? []) {
+      const other =
+        row.sender_address === wallet
+          ? row.recipient_address
+          : row.sender_address;
+      if (!convMap.has(row.conversation_id)) {
+        convMap.set(row.conversation_id, {
+          conversation_id: row.conversation_id,
+          other_address: other,
+          latest_message: row.content,
+          latest_at: row.created_at,
+          unread: 0,
+        });
+      }
+      if (row.recipient_address === wallet && !row.read_at) {
+        const entry = convMap.get(row.conversation_id)!;
+        entry.unread++;
+      }
+    }
+
+    res.json({ conversations: Array.from(convMap.values()) });
+  },
+);
 
 // GET /v1/messages/unread-count?wallet=ADDR — total unread count for badge
 messagesRouter.get("/unread-count", async (req, res) => {
