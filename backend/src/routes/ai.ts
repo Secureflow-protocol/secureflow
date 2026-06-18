@@ -4,40 +4,40 @@ import {
   generateMilestoneSuggestions,
   rewriteProjectDescription,
 } from "../lib/groq.js";
+import { validateBody } from "../middleware/validate.js";
+import {
+  postMilestonesBody,
+  postCoverLetterBody,
+  postRewriteBody,
+} from "../schemas/ai.js";
 
 export const aiRouter = Router();
 
-aiRouter.post("/milestones", async (req, res) => {
+aiRouter.post("/milestones", validateBody(postMilestonesBody), async (req, res) => {
   try {
     const {
-      projectTitle = "",
-      projectDescription = "",
-      totalBudget = "",
-      durationDays = "",
-      userPrompt = "",
-      milestoneIndex = null,
-    } = req.body ?? {};
-
-    if (!String(userPrompt).trim()) {
-      res.status(400).json({ error: "userPrompt is required" });
-      return;
-    }
+      projectTitle,
+      projectDescription,
+      totalBudget,
+      durationDays,
+      userPrompt,
+      milestoneIndex,
+    } = req.body;
 
     const suggestions = await generateMilestoneSuggestions({
-      projectTitle: String(projectTitle),
-      projectDescription: String(projectDescription),
-      totalBudget: String(totalBudget),
-      durationDays: String(durationDays),
-      userPrompt: String(userPrompt),
-      milestoneIndex:
-        typeof milestoneIndex === "number" ? milestoneIndex : null,
+      projectTitle,
+      projectDescription,
+      totalBudget,
+      durationDays,
+      userPrompt,
+      milestoneIndex,
     });
 
     res.json({ suggestions });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "AI generation failed";
     const status = msg.includes("GROQ_API_KEY") ? 503 : 500;
-    res.status(status).json({ error: msg });
+    res.status(status).json({ error: status === 503 ? "AI service not configured" : "AI generation failed" });
   }
 });
 
