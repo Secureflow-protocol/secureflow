@@ -180,43 +180,36 @@ messagesRouter.get(
 );
 
 // PATCH /v1/messages/conversation/read?a=ADDR1&b=ADDR2&wallet=ADDR — mark all messages in thread as read
-messagesRouter.patch("/conversation/read", async (req, res) => {
-  const supabase = getSupabase();
-  if (!supabase) {
-    res.status(503).json({ error: "Messages store not configured" });
-    return;
-  }
+messagesRouter.patch(
+  "/conversation/read",
+  validateQuery(patchConversationReadQuery),
+  async (req, res) => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      serviceUnavailable(res, "Messages store");
+      return;
+    }
 
-  const a = String(req.query.a ?? "").trim();
-  const b = String(req.query.b ?? "").trim();
-  const wallet = String(req.query.wallet ?? "").trim();
+    const a = String(req.query.a ?? "").trim();
+    const b = String(req.query.b ?? "").trim();
+    const wallet = String(req.query.wallet ?? "").trim();
+    const convId = conversationId(a, b);
 
-  if (
-    !STELLAR_ADDR.test(a) ||
-    !STELLAR_ADDR.test(b) ||
-    !STELLAR_ADDR.test(wallet)
-  ) {
-    res
-      .status(400)
-      .json({ error: "a, b, and wallet must be valid Stellar G-addresses" });
-    return;
-  }
+    const { error } = await supabase
+      .from("messages")
+      .update({ read_at: new Date().toISOString() })
+      .eq("conversation_id", convId)
+      .eq("recipient_address", wallet)
+      .is("read_at", null);
 
-  const convId = conversationId(a, b);
-  const { error } = await supabase
-    .from("messages")
-    .update({ read_at: new Date().toISOString() })
-    .eq("conversation_id", convId)
-    .eq("recipient_address", wallet)
-    .is("read_at", null);
+    if (error) {
+      internalError(res);
+      return;
+    }
 
-  if (error) {
-    res.status(500).json({ error: error.message });
-    return;
-  }
-
-  res.json({ ok: true });
-});
+    res.json({ ok: true });
+  },
+);
 
 // PATCH /v1/messages/:id/read?wallet=ADDR — mark single message as read
 messagesRouter.patch("/:id/read", async (req, res) => {
