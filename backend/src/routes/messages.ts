@@ -49,46 +49,43 @@ messagesRouter.post("/", validateBody(postMessageBody), async (req, res) => {
 });
 
 // GET /v1/messages/conversation?a=ADDR1&b=ADDR2&since=ISO — fetch chat thread
-messagesRouter.get("/conversation", async (req, res) => {
-  const supabase = getSupabase();
-  if (!supabase) {
-    res.json({ messages: [] });
-    return;
-  }
+messagesRouter.get(
+  "/conversation",
+  validateQuery(getConversationQuery),
+  async (req, res) => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      res.json({ messages: [] });
+      return;
+    }
 
-  const a = String(req.query.a ?? "").trim();
-  const b = String(req.query.b ?? "").trim();
-  const since = String(req.query.since ?? "").trim();
+    const a = String(req.query.a ?? "").trim();
+    const b = String(req.query.b ?? "").trim();
+    const since = String(req.query.since ?? "").trim();
+    const convId = conversationId(a, b);
 
-  if (!STELLAR_ADDR.test(a) || !STELLAR_ADDR.test(b)) {
-    res
-      .status(400)
-      .json({ error: "a and b must be valid Stellar G-addresses" });
-    return;
-  }
+    let query = supabase
+      .from("messages")
+      .select(
+        "id, sender_address, recipient_address, content, read_at, created_at",
+      )
+      .eq("conversation_id", convId)
+      .order("created_at", { ascending: true })
+      .limit(200);
 
-  const convId = conversationId(a, b);
-  let query = supabase
-    .from("messages")
-    .select(
-      "id, sender_address, recipient_address, content, read_at, created_at",
-    )
-    .eq("conversation_id", convId)
-    .order("created_at", { ascending: true })
-    .limit(200);
+    if (since) {
+      query = query.gt("created_at", since);
+    }
 
-  if (since) {
-    query = query.gt("created_at", since);
-  }
+    const { data, error } = await query;
+    if (error) {
+      internalError(res);
+      return;
+    }
 
-  const { data, error } = await query;
-  if (error) {
-    res.status(500).json({ error: error.message });
-    return;
-  }
-
-  res.json({ messages: data ?? [] });
-});
+    res.json({ messages: data ?? [] });
+  },
+);
 
 // GET /v1/messages/inbox?wallet=ADDR — list all conversations with latest message + unread count
 messagesRouter.get("/inbox", async (req, res) => {
