@@ -41,36 +41,24 @@ aiRouter.post("/milestones", validateBody(postMilestonesBody), async (req, res) 
   }
 });
 
-aiRouter.post("/cover-letter", async (req, res) => {
+aiRouter.post("/cover-letter", validateBody(postCoverLetterBody), async (req, res) => {
   try {
-    const {
-      jobTitle = "",
-      jobDescription = "",
-      proposedTimelineDays = "",
-      tone = "",
-      userDraft = "",
-    } = req.body ?? {};
-
-    if (!String(jobDescription).trim()) {
-      res.status(400).json({ error: "jobDescription is required" });
-      return;
-    }
+    const { jobTitle, jobDescription, proposedTimelineDays, tone, userDraft } =
+      req.body;
 
     const coverLetter = await generateCoverLetter({
-      jobTitle: String(jobTitle),
-      jobDescription: String(jobDescription),
-      proposedTimelineDays: proposedTimelineDays
-        ? String(proposedTimelineDays)
-        : undefined,
-      tone: tone ? String(tone) : undefined,
-      userDraft: userDraft ? String(userDraft) : undefined,
+      jobTitle,
+      jobDescription,
+      proposedTimelineDays,
+      tone,
+      userDraft,
     });
 
     res.json({ coverLetter });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "AI generation failed";
     const status = msg.includes("GROQ_API_KEY") ? 503 : 500;
-    res.status(status).json({ error: msg });
+    res.status(status).json({ error: status === 503 ? "AI service not configured" : "AI generation failed" });
   }
 });
 
