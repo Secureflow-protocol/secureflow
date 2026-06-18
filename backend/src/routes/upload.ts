@@ -1,6 +1,8 @@
 import { Router } from "express";
 import multer from "multer";
 import { getSupabase } from "../lib/supabase.js";
+import { internalError, serviceUnavailable } from "../lib/errors.js";
+import { uploadMilestoneBody } from "../schemas/upload.js";
 
 export const uploadRouter = Router();
 
@@ -34,7 +36,7 @@ const upload = multer({
 uploadRouter.post("/milestone", upload.single("file"), async (req, res) => {
   const supabase = getSupabase();
   if (!supabase) {
-    res.status(503).json({ error: "Storage not configured" });
+    serviceUnavailable(res, "Storage");
     return;
   }
 
@@ -44,8 +46,20 @@ uploadRouter.post("/milestone", upload.single("file"), async (req, res) => {
     return;
   }
 
-  const escrowId = String(req.body.escrow_id ?? "unknown");
-  const milestoneIndex = String(req.body.milestone_index ?? "0");
+  const bodyResult = uploadMilestoneBody.safeParse(req.body);
+  if (!bodyResult.success) {
+    res.status(400).json({
+      error: "Validation failed",
+      details: bodyResult.error.errors.map((e) => ({
+        field: e.path.join(".") || "root",
+        message: e.message,
+      })),
+    });
+    return;
+  }
+
+  const escrowId = String(bodyResult.data.escrow_id);
+  const milestoneIndex = String(bodyResult.data.milestone_index);
   const ext = file.originalname.split(".").pop() ?? "bin";
   const path = `${escrowId}/${milestoneIndex}/${Date.now()}-${Math.random()
     .toString(36)
@@ -66,12 +80,7 @@ uploadRouter.post("/milestone", upload.single("file"), async (req, res) => {
     });
 
   if (uploadError) {
-    const hint =
-      uploadError.message.includes("row-level security") ||
-      uploadError.message.includes("violates")
-        ? " — ensure the Supabase storage RLS policy allows inserts, or use the service_role key"
-        : "";
-    res.status(500).json({ error: uploadError.message + hint });
+    internalError(res);
     return;
   }
 
