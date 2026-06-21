@@ -1,0 +1,67 @@
+name: Feature request
+description: Suggest a scoped SecureFlow improvement.
+title: "[Feature]: "
+labels:
+  - enhancement
+  - dx
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for product, UX, frontend, backend, contract, testing, tooling, and documentation improvements.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What user, contributor, operator, or maintainer problem should this solve?
+      placeholder: This would help because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the change you would like to see.
+      placeholder: |
+        - Add ...
+        - Update ...
+        - Keep ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected layer
+      multiple: true
+      options:
+        - Frontend
+        - Backend
+        - Soroban contract
+        - Generated contract clients
+        - CI / tooling
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Share workarounds, rejected approaches, or related designs.
+
+  - type: textarea
+    id: testing
+    attributes:
+      label: Test or validation plan
+      description: What would prove this change works?
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Link related issues, PRs, docs, mockups, or external references.
+
