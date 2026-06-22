@@ -1,0 +1,48 @@
+name: Feature request
+description: Propose a product, protocol, or developer-experience improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user, contributor, or protocol problem would this solve?
+      placeholder: Freelancers need a way to...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest useful version of the feature.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      options:
+        - Frontend
+        - Backend
+        - Soroban contract
+        - Generated contract client
+        - Documentation
+        - CI/tooling
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Mention any simpler or safer approaches.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true before this can be considered done?
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true

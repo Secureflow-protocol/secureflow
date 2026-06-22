@@ -1,0 +1,58 @@
+name: Contract issue
+description: Report or propose a Soroban contract change.
+title: "[Contract]: "
+labels: ["contract"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Contract issues can affect funds and authorization. Do not publish exploit details for a live vulnerability; open a minimal report and ask maintainers for a private disclosure path.
+  - type: input
+    id: function
+    attributes:
+      label: Affected function or module
+      placeholder: escrow_management::create_escrow
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Current behavior
+      description: What does the contract do today?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should the contract do instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: security
+    attributes:
+      label: Security implications
+      options:
+        - None known
+        - Authorization or access control
+        - Funds can be locked
+        - Funds can be misdirected
+        - Accounting or invariant drift
+        - Denial of service
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Suggested tests
+      description: What unit, integration, or invariant tests should cover this?
+      placeholder: |
+        - ...
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Safety checklist
+      options:
+        - label: I did not include private keys, seed phrases, or live exploit instructions.
+          required: true

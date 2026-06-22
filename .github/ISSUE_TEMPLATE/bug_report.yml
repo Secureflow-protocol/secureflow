@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a reproducible SecureFlow bug.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve SecureFlow. Do not include private keys, seed phrases, access tokens, or customer data.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect instead?
+      placeholder: The escrow creation flow fails when...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: List exact steps so a maintainer can reproduce the issue.
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. Click ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Frontend
+        - Backend
+        - Soroban contract
+        - Generated contract client
+        - Documentation
+        - CI/tooling
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Node, Rust, Stellar CLI, browser, and network where relevant.
+      placeholder: |
+        OS:
+        Node:
+        Rust:
+        Stellar CLI:
+        Network:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste sanitized logs or attach screenshots if useful.
+      render: shell
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Safety checklist
+      options:
+        - label: I removed secrets, private keys, seed phrases, and tokens from this report.
+          required: true
+        - label: I searched existing issues before opening this one.
+          required: true
