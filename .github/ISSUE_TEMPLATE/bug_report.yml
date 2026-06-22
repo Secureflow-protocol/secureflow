@@ -1,0 +1,88 @@
+name: Bug report
+description: Report a reproducible frontend, backend, contract, or CI problem.
+title: "[Bug]: "
+labels:
+  - bug
+  - dx
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a SecureFlow bug. Do not include secrets, private keys, API keys, or sensitive wallet data.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect instead?
+      placeholder: I expected ..., but ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest set of steps or commands that reproduces the problem.
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected layer
+      multiple: true
+      options:
+        - Frontend
+        - Backend
+        - Soroban contract
+        - Generated contract clients
+        - CI / tooling
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 15.5, Ubuntu 24.04, Windows 11, etc."
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      placeholder: "node --version"
+
+  - type: input
+    id: rust-version
+    attributes:
+      label: Rust version
+      placeholder: "rustc --version"
+
+  - type: input
+    id: stellar-version
+    attributes:
+      label: Stellar CLI / scaffold version
+      placeholder: "stellar --version; stellar-scaffold --version"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, screenshots, or failing output
+      description: Paste terminal output, browser console errors, screenshots, or test failures. Redact secrets.
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Link related issues, PRs, deployments, or docs.
+
