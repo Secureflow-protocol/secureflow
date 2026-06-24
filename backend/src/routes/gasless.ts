@@ -20,6 +20,8 @@ import {
   Transaction,
 } from "@stellar/stellar-sdk";
 import { Server as RpcServer } from "@stellar/stellar-sdk/rpc";
+import { validateBody } from "../middleware/validate.js";
+import { postGaslessApplyBody } from "../schemas/gasless.js";
 
 export const gaslessRouter = Router();
 
@@ -70,22 +72,11 @@ function requireInnerTransaction(
   return parsed as Transaction;
 }
 
-gaslessRouter.post("/apply", async (req, res) => {
+gaslessRouter.post("/apply", validateBody(postGaslessApplyBody), async (req, res) => {
   try {
-    const { signedTxXdr } = req.body ?? {};
-
-    if (!signedTxXdr || typeof signedTxXdr !== "string") {
-      res.status(400).json({ error: "signedTxXdr is required" });
-      return;
-    }
+    const { signedTxXdr } = req.body;
 
     const normalizedXdr = normalizeSignedTxXdr(signedTxXdr);
-    if (normalizedXdr.length < 48) {
-      res
-        .status(400)
-        .json({ error: "signedTxXdr is too short to be valid XDR" });
-      return;
-    }
 
     const adminKeypair = getAdminKeypair();
     const networkPassphrase = getNetworkPassphrase();

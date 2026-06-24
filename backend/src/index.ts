@@ -1,7 +1,9 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
 import { requireApiSecret } from "./middleware/auth.js";
+import { rateLimiter } from "./middleware/rateLimiter.js";
 import { aiRouter } from "./routes/ai.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { uploadRouter } from "./routes/upload.js";
@@ -12,6 +14,8 @@ const app = express();
 const port = Number(process.env.PORT) || 8787;
 const apiSecret = process.env.API_SECRET;
 
+app.use(helmet());
+app.use(rateLimiter);
 app.use(
   cors({
     origin: true,
