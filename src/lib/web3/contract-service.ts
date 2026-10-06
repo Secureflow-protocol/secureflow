@@ -17,6 +17,11 @@ import {
 import { Client as SecureFlowClient } from "@/contracts/generated/src/index";
 import { getCurrentNetwork, CONTRACTS } from "./stellar-config";
 import { signTransaction, signAuthEntries } from "./wallet-signer";
+import {
+  PendingTransactionError,
+  type TransactionPhase,
+  type TransactionProgressListener,
+} from "./transaction-feedback";
 import useWalletStore from "@/store/wallet.store";
 
 export interface EscrowData {
@@ -56,6 +61,40 @@ export class ContractService {
   private network: ReturnType<typeof getCurrentNetwork>;
   private client: SecureFlowClient;
   private rpcServer: rpc.Server;
+  private transactionProgressListener?: TransactionProgressListener;
+
+  setTransactionProgressListener(listener?: TransactionProgressListener) {
+    this.transactionProgressListener = listener;
+  }
+
+  private reportTransactionProgress(phase: TransactionPhase, txHash?: string) {
+    this.transactionProgressListener?.({ phase, txHash });
+  }
+
+  private async sendSignedTransaction(
+    signedTransaction: ReturnType<typeof TransactionBuilder.fromXDR>,
+  ) {
+    const localHash = signedTransaction.hash().toString("hex");
+
+    let sendResponse;
+    try {
+      sendResponse = await this.rpcServer.sendTransaction(signedTransaction);
+    } catch {
+      this.reportTransactionProgress("pending", localHash);
+      throw new PendingTransactionError(localHash);
+    }
+
+    if (sendResponse.status === "TRY_AGAIN_LATER") {
+      throw new Error("Transaction should be retried later");
+    }
+
+    const txHash = sendResponse.hash || localHash;
+    if (sendResponse.status !== "ERROR") {
+      this.reportTransactionProgress("pending", txHash);
+    }
+
+    return { sendResponse, txHash };
+  }
 
   constructor(contractId?: string) {
     this.contractId = contractId || CONTRACTS.SECUREFLOW_ESCROW;
@@ -1045,6 +1084,7 @@ export class ContractService {
 
       const sendResponse =
         await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
@@ -2175,6 +2215,8 @@ export class ContractService {
             .setTimeout(30)
             .build();
 
+          this.reportTransactionProgress("signing");
+
           const signedTxXdr = await signTransaction({
             unsignedTransaction: newTx.toXDR(),
             address: walletAddress,
@@ -2187,6 +2229,7 @@ export class ContractService {
 
           const sendResponse =
             await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
           const txHash = sendResponse.hash || "";
 
@@ -2282,6 +2325,7 @@ export class ContractService {
       }
 
       // No auth entries, sign normally
+      this.reportTransactionProgress("signing");
       const signedTxXdr = await signTransaction({
         unsignedTransaction: prepared.toXDR(),
         address: walletAddress,
@@ -2294,6 +2338,7 @@ export class ContractService {
 
       const sendResponse =
         await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
       const txHash = sendResponse.hash || "";
 
@@ -2417,6 +2462,7 @@ export class ContractService {
       throw new Error("Beneficiary address is required");
     }
 
+    this.reportTransactionProgress("building");
     try {
       // Build transaction manually with beneficiary as source account
       // This ensures the simulation detects auth requirements
@@ -2498,6 +2544,7 @@ export class ContractService {
               .setTimeout(30)
               .build();
 
+            this.reportTransactionProgress("signing");
             signedTxXdr = await signTransaction({
               unsignedTransaction: newTx.toXDR(),
               address: beneficiary,
@@ -2509,6 +2556,7 @@ export class ContractService {
           throw new Error("No operations found in prepared transaction");
         }
       } else {
+        this.reportTransactionProgress("signing");
         signedTxXdr = await signTransaction({
           unsignedTransaction: prepared.toXDR(),
           address: beneficiary,
@@ -2520,18 +2568,18 @@ export class ContractService {
         this.network.networkPassphrase,
       );
 
-      const sendResponse =
-        await this.rpcServer.sendTransaction(signedTransaction);
+      const { sendResponse, txHash } =
+        await this.sendSignedTransaction(signedTransaction);
 
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
       }
 
-      if (sendResponse.status === "PENDING" && sendResponse.hash) {
-        return await this.waitForConfirmation(sendResponse.hash);
+      if (sendResponse.status === "PENDING" || sendResponse.status === "DUPLICATE") {
+        return await this.waitForConfirmation(txHash);
       }
 
-      return sendResponse.hash || "";
+      return txHash;
     } catch (error: any) {
       throw error;
     }
@@ -2549,6 +2597,7 @@ export class ContractService {
       throw new Error("Beneficiary address is required");
     }
 
+    this.reportTransactionProgress("building");
     try {
       // Build transaction manually with beneficiary as source account
       // This ensures the simulation detects auth requirements
@@ -2631,6 +2680,7 @@ export class ContractService {
               .build();
 
             const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            this.reportTransactionProgress("signing");
             signedTxXdr = await signTransaction({
               unsignedTransaction: newPrepared.toXDR(),
               address: params.beneficiary,
@@ -2642,6 +2692,7 @@ export class ContractService {
           throw new Error("No operations found in prepared transaction");
         }
       } else {
+        this.reportTransactionProgress("signing");
         signedTxXdr = await signTransaction({
           unsignedTransaction: prepared.toXDR(),
           address: params.beneficiary,
@@ -2653,18 +2704,18 @@ export class ContractService {
         this.network.networkPassphrase,
       );
 
-      const sendResponse =
-        await this.rpcServer.sendTransaction(signedTransaction);
+      const { sendResponse, txHash } =
+        await this.sendSignedTransaction(signedTransaction);
 
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
       }
 
-      if (sendResponse.status === "PENDING" && sendResponse.hash) {
-        return await this.waitForConfirmation(sendResponse.hash);
+      if (sendResponse.status === "PENDING" || sendResponse.status === "DUPLICATE") {
+        return await this.waitForConfirmation(txHash);
       }
 
-      return sendResponse.hash || "";
+      return txHash;
     } catch (error: any) {
       throw error;
     }
@@ -2683,6 +2734,7 @@ export class ContractService {
       throw new Error("Beneficiary address is required");
     }
 
+    this.reportTransactionProgress("building");
     try {
       const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } =
         await import("@stellar/stellar-sdk");
@@ -2760,6 +2812,7 @@ export class ContractService {
               .build();
 
             const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            this.reportTransactionProgress("signing");
             signedTxXdr = await signTransaction({
               unsignedTransaction: newPrepared.toXDR(),
               address: params.beneficiary,
@@ -2771,6 +2824,7 @@ export class ContractService {
           throw new Error("No operations found in prepared transaction");
         }
       } else {
+        this.reportTransactionProgress("signing");
         signedTxXdr = await signTransaction({
           unsignedTransaction: prepared.toXDR(),
           address: params.beneficiary,
@@ -2782,18 +2836,18 @@ export class ContractService {
         this.network.networkPassphrase,
       );
 
-      const sendResponse =
-        await this.rpcServer.sendTransaction(signedTransaction);
+      const { sendResponse, txHash } =
+        await this.sendSignedTransaction(signedTransaction);
 
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
       }
 
-      if (sendResponse.status === "PENDING" && sendResponse.hash) {
-        return await this.waitForConfirmation(sendResponse.hash);
+      if (sendResponse.status === "PENDING" || sendResponse.status === "DUPLICATE") {
+        return await this.waitForConfirmation(txHash);
       }
 
-      return sendResponse.hash || "";
+      return txHash;
     } catch (error: any) {
       throw error;
     }
@@ -2807,6 +2861,7 @@ export class ContractService {
     if (!params.depositor) {
       throw new Error("Depositor address is required");
     }
+    this.reportTransactionProgress("building");
     try {
       const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } =
         await import("@stellar/stellar-sdk");
@@ -2874,6 +2929,7 @@ export class ContractService {
               .setTimeout(30)
               .build();
             const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            this.reportTransactionProgress("signing");
             signedTxXdr = await signTransaction({
               unsignedTransaction: newPrepared.toXDR(),
               address: params.depositor,
@@ -2885,6 +2941,7 @@ export class ContractService {
           throw new Error("No operations found in prepared transaction");
         }
       } else {
+        this.reportTransactionProgress("signing");
         signedTxXdr = await signTransaction({
           unsignedTransaction: prepared.toXDR(),
           address: params.depositor,
@@ -2894,15 +2951,18 @@ export class ContractService {
         signedTxXdr,
         this.network.networkPassphrase,
       );
-      const sendResponse =
-        await this.rpcServer.sendTransaction(signedTransaction);
+      const { sendResponse, txHash } =
+        await this.sendSignedTransaction(signedTransaction);
+
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
       }
-      if (sendResponse.status === "PENDING" && sendResponse.hash) {
-        return await this.waitForConfirmation(sendResponse.hash);
+
+      if (sendResponse.status === "PENDING" || sendResponse.status === "DUPLICATE") {
+        return await this.waitForConfirmation(txHash);
       }
-      return sendResponse.hash || "";
+
+      return txHash;
     } catch (error: any) {
       throw error;
     }
@@ -2917,6 +2977,7 @@ export class ContractService {
     if (!params.depositor) {
       throw new Error("Depositor address is required");
     }
+    this.reportTransactionProgress("building");
     try {
       const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } =
         await import("@stellar/stellar-sdk");
@@ -2985,6 +3046,7 @@ export class ContractService {
               .setTimeout(30)
               .build();
             const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            this.reportTransactionProgress("signing");
             signedTxXdr = await signTransaction({
               unsignedTransaction: newPrepared.toXDR(),
               address: params.depositor,
@@ -2996,6 +3058,7 @@ export class ContractService {
           throw new Error("No operations found in prepared transaction");
         }
       } else {
+        this.reportTransactionProgress("signing");
         signedTxXdr = await signTransaction({
           unsignedTransaction: prepared.toXDR(),
           address: params.depositor,
@@ -3005,15 +3068,18 @@ export class ContractService {
         signedTxXdr,
         this.network.networkPassphrase,
       );
-      const sendResponse =
-        await this.rpcServer.sendTransaction(signedTransaction);
+      const { sendResponse, txHash } =
+        await this.sendSignedTransaction(signedTransaction);
+
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
       }
-      if (sendResponse.status === "PENDING" && sendResponse.hash) {
-        return await this.waitForConfirmation(sendResponse.hash);
+
+      if (sendResponse.status === "PENDING" || sendResponse.status === "DUPLICATE") {
+        return await this.waitForConfirmation(txHash);
       }
-      return sendResponse.hash || "";
+
+      return txHash;
     } catch (error: any) {
       throw error;
     }
@@ -3028,6 +3094,7 @@ export class ContractService {
     if (!params.disputer) {
       throw new Error("Disputer address is required");
     }
+    this.reportTransactionProgress("building");
     try {
       const { Contract, nativeToScVal, TransactionBuilder, Operation, xdr } =
         await import("@stellar/stellar-sdk");
@@ -3096,6 +3163,7 @@ export class ContractService {
               .setTimeout(30)
               .build();
             const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            this.reportTransactionProgress("signing");
             signedTxXdr = await signTransaction({
               unsignedTransaction: newPrepared.toXDR(),
               address: params.disputer,
@@ -3107,6 +3175,7 @@ export class ContractService {
           throw new Error("No operations found in prepared transaction");
         }
       } else {
+        this.reportTransactionProgress("signing");
         signedTxXdr = await signTransaction({
           unsignedTransaction: prepared.toXDR(),
           address: params.disputer,
@@ -3116,15 +3185,18 @@ export class ContractService {
         signedTxXdr,
         this.network.networkPassphrase,
       );
-      const sendResponse =
-        await this.rpcServer.sendTransaction(signedTransaction);
+      const { sendResponse, txHash } =
+        await this.sendSignedTransaction(signedTransaction);
+
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
       }
-      if (sendResponse.status === "PENDING" && sendResponse.hash) {
-        return await this.waitForConfirmation(sendResponse.hash);
+
+      if (sendResponse.status === "PENDING" || sendResponse.status === "DUPLICATE") {
+        return await this.waitForConfirmation(txHash);
       }
-      return sendResponse.hash || "";
+
+      return txHash;
     } catch (error: any) {
       throw error;
     }
@@ -3391,6 +3463,7 @@ export class ContractService {
               .build();
 
             const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            this.reportTransactionProgress("signing");
             const signedTxXdr = await signTransaction({
               unsignedTransaction: newPrepared.toXDR(),
               address: depositorAddress,
@@ -3403,6 +3476,7 @@ export class ContractService {
 
             const sendResponse =
               await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
             if (sendResponse.status === "ERROR") {
               throw new Error("Transaction failed");
@@ -3418,6 +3492,7 @@ export class ContractService {
       }
 
       // No auth entries, sign normally
+      this.reportTransactionProgress("signing");
       const signedTxXdr = await signTransaction({
         unsignedTransaction: prepared.toXDR(),
         address: depositorAddress,
@@ -3430,6 +3505,7 @@ export class ContractService {
 
       const sendResponse =
         await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
@@ -3635,6 +3711,7 @@ export class ContractService {
               .build();
 
             const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            this.reportTransactionProgress("signing");
             const signedTxXdr = await signTransaction({
               unsignedTransaction: newPrepared.toXDR(),
               address: walletAddress,
@@ -3647,6 +3724,7 @@ export class ContractService {
 
             const sendResponse =
               await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
             if (sendResponse.status === "ERROR") {
               throw new Error("Transaction failed");
@@ -3662,6 +3740,7 @@ export class ContractService {
       }
 
       // No auth entries, sign normally
+      this.reportTransactionProgress("signing");
       const signedTxXdr = await signTransaction({
         unsignedTransaction: prepared.toXDR(),
         address: walletAddress,
@@ -3674,6 +3753,7 @@ export class ContractService {
 
       const sendResponse =
         await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
@@ -3764,6 +3844,7 @@ export class ContractService {
               .build();
 
             const newPrepared = await this.rpcServer.prepareTransaction(newTx);
+            this.reportTransactionProgress("signing");
             const signedTxXdr = await signTransaction({
               unsignedTransaction: newPrepared.toXDR(),
               address: walletAddress,
@@ -3776,6 +3857,7 @@ export class ContractService {
 
             const sendResponse =
               await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
             if (sendResponse.status === "ERROR") {
               throw new Error("Transaction failed");
@@ -3791,6 +3873,7 @@ export class ContractService {
       }
 
       // No auth entries, sign normally
+      this.reportTransactionProgress("signing");
       const signedTxXdr = await signTransaction({
         unsignedTransaction: prepared.toXDR(),
         address: walletAddress,
@@ -3803,6 +3886,7 @@ export class ContractService {
 
       const sendResponse =
         await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
@@ -3831,6 +3915,8 @@ export class ContractService {
         fee_bp: feeBP,
       });
 
+      this.reportTransactionProgress("signing");
+
       const signedTxXdr = await signTransaction({
         unsignedTransaction: assembledTx.toXDR(),
         address: walletAddress,
@@ -3843,6 +3929,7 @@ export class ContractService {
 
       const sendResponse =
         await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
@@ -3871,6 +3958,8 @@ export class ContractService {
         fee_collector: feeCollector,
       });
 
+      this.reportTransactionProgress("signing");
+
       const signedTxXdr = await signTransaction({
         unsignedTransaction: assembledTx.toXDR(),
         address: walletAddress,
@@ -3883,6 +3972,7 @@ export class ContractService {
 
       const sendResponse =
         await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
@@ -4022,6 +4112,8 @@ export class ContractService {
       }
     }
 
+    this.reportTransactionProgress("signing");
+
     const signedXdr = await signTransaction({
       unsignedTransaction: (finalPrepared as any).toXDR(),
       address: ownerAddress,
@@ -4032,6 +4124,7 @@ export class ContractService {
       this.network.networkPassphrase,
     );
     const sendResponse = await this.rpcServer.sendTransaction(signedTx);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
     if (sendResponse.status === "ERROR") {
       let errMsg = "Transaction failed";
@@ -4084,6 +4177,7 @@ export class ContractService {
         .build();
 
       const prepared = await this.rpcServer.prepareTransaction(tx);
+      this.reportTransactionProgress("signing");
       const signedTxXdr = await signTransaction({
         unsignedTransaction: prepared.toXDR(),
         address: walletAddress,
@@ -4096,6 +4190,7 @@ export class ContractService {
 
       const sendResponse =
         await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
       if (sendResponse.status === "ERROR") {
         throw new Error("Transaction failed");
       }
@@ -4261,6 +4356,8 @@ export class ContractService {
             .setTimeout(30)
             .build();
 
+          this.reportTransactionProgress("signing");
+
           const signedTxXdr = await signTransaction({
             unsignedTransaction: newTx.toXDR(),
             address: signerAddress,
@@ -4273,6 +4370,7 @@ export class ContractService {
 
           const sendResponse =
             await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
           if (sendResponse.status === "ERROR") {
             throw new Error("Transaction failed");
@@ -4290,6 +4388,7 @@ export class ContractService {
     // No auth entries, sign normally
     // Use sourceAddress if provided, otherwise use walletAddress
     const signerAddress = sourceAddress || walletAddress;
+    this.reportTransactionProgress("signing");
     const signedTxXdr = await signTransaction({
       unsignedTransaction: prepared.toXDR(),
       address: signerAddress,
@@ -4302,6 +4401,7 @@ export class ContractService {
 
     const sendResponse =
       await this.rpcServer.sendTransaction(signedTransaction);
+    this.reportTransactionProgress("pending", sendResponse.hash);
 
     if (sendResponse.status === "ERROR") {
       throw new Error("Transaction failed");
@@ -4317,50 +4417,63 @@ export class ContractService {
   /**
    * Wait for transaction confirmation
    */
+    /**
+   * Preserve an ambiguous transaction hash instead of inviting a blind retry.
+   */
+  public async getTransactionStatus(
+    hash: string,
+  ): Promise<"success" | "failed" | "pending" | "not_found"> {
+    const txStatus = await this.rpcServer.getTransaction(hash);
+    switch (txStatus.status as string) {
+      case "SUCCESS":
+        return "success";
+      case "FAILED":
+        return "failed";
+      case "PENDING":
+        return "pending";
+      case "NOT_FOUND":
+      default:
+        return "not_found";
+    }
+  }
+
+  /**
+   * Preserve an ambiguous transaction hash instead of inviting a blind retry.
+   */
   private async waitForConfirmation(hash: string): Promise<string> {
     let attempts = 0;
-    const maxAttempts = 30; // 30 seconds
+    const maxAttempts = 30;
 
     while (attempts < maxAttempts) {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-
       try {
         const txStatus = await this.rpcServer.getTransaction(hash);
         const status = txStatus.status as string;
-
-        if (status === "SUCCESS") {
-          return hash;
-        }
-
-        if (status === "FAILED") {
-          throw new Error("Transaction failed");
-        }
-
-        // If status is NOT_FOUND, transaction might still be processing
-        // Continue waiting
-        if (status === "NOT_FOUND") {
-          attempts++;
-          continue;
-        }
-
-        // If status is PENDING, continue waiting
-        if (status === "PENDING") {
-          attempts++;
-          continue;
-        }
-
+        if (status === "SUCCESS") return hash;
+        if (status === "FAILED") throw new Error("Transaction failed on-chain");
         attempts++;
       } catch (error) {
-        // If error is about transaction not found, continue waiting
-        if (error instanceof Error && error.message.includes("not found")) {
+        const message =
+          error instanceof Error
+            ? error.message.toLowerCase()
+            : String(error).toLowerCase();
+        if (
+          message.includes("not found") ||
+          message.includes("timeout") ||
+          message.includes("network") ||
+          message.includes("fetch") ||
+          message.includes("temporarily") ||
+          message.includes("503") ||
+          message.includes("504")
+        ) {
           attempts++;
           continue;
         }
-        attempts++;
+        throw error;
       }
     }
 
-    throw new Error("Transaction still pending after waiting");
+    throw new PendingTransactionError(hash);
   }
 }
 

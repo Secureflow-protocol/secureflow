@@ -1,4 +1,11 @@
 import { useState } from "react";
+import { contractService } from "@/lib/web3/contract-service";
+import {
+  PendingTransactionError,
+  getTransactionErrorGuidance,
+  type TransactionErrorGuidance,
+  type TransactionPhase,
+} from "@/lib/web3/transaction-feedback";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +21,6 @@ import {
   createMilestoneNotification,
 } from "@/contexts/notification-context";
 import { useToast } from "@/hooks/use-toast";
-import { CONTRACTS } from "@/lib/web3/config";
 
 import {
   CheckCircle2,
@@ -55,10 +61,14 @@ export function MilestoneActions({
   escrowReleasedAmount,
   escrowTotalAmount,
 }: MilestoneActionsProps) {
-  const { wallet, getContract } = useWeb3();
+  const { wallet } = useWeb3();
   const { addNotification } = useNotifications();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [txPhase, setTxPhase] = useState<TransactionPhase>("idle");
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [txError, setTxError] = useState<TransactionErrorGuidance | null>(null);
+  const [retryAllowed, setRetryAllowed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<
     | "start"
@@ -92,6 +102,10 @@ export function MilestoneActions({
     milestone.status === "disputed" || escrowStatus === "disputed";
 
   const openDialog = (type: typeof actionType) => {
+    setTxPhase("idle");
+    setTxHash(null);
+    setTxError(null);
+    setRetryAllowed(false);
     setActionType(type);
     setDialogOpen(true);
   };
@@ -100,36 +114,33 @@ export function MilestoneActions({
     if (!actionType) return;
 
     setIsLoading(true);
-    const contract = getContract(CONTRACTS.SECUREFLOW_ESCROW);
+    setTxError(null);
+    setRetryAllowed(false);
+    setTxPhase("building");
+    contractService.setTransactionProgressListener(({ phase, txHash: nextHash }) => {
+      setTxPhase(phase);
+      if (nextHash) setTxHash(nextHash);
+    });
 
     try {
       let txHash: string | undefined;
 
       switch (actionType) {
         case "start":
-          txHash = await contract.send(
-            "start_work",
+          txHash = await contractService.startWork(
             Number(escrowId),
-            wallet.address,
+            wallet.address || "",
           );
           break;
         case "submit":
-          txHash = await contract.send(
-            "submit_milestone",
-            Number(escrowId),
-            milestoneIndex,
-            milestone.description,
-            wallet.address,
-          );
+          txHash = await contractService.submitMilestone({
+            escrow_id: Number(escrowId),
+            milestone_index: milestoneIndex,
+            description: milestone.description,
+            beneficiary: wallet.address || "",
+          });
           break;
         case "approve":
-          // Use ContractService instead of contract.send - it handles the correct format
-          const { ContractService } = await import(
-            "@/lib/web3/contract-service"
-          );
-          const contractService = new ContractService(
-            CONTRACTS.SECUREFLOW_ESCROW,
-          );
           txHash = await contractService.approveMilestone({
             escrow_id: Number(escrowId),
             milestone_index: milestoneIndex,
@@ -137,52 +148,38 @@ export function MilestoneActions({
           });
           break;
         case "reject":
-          // Use ContractService instead of contract.send - it handles the correct format
-          const { ContractService: RejectContractService } = await import(
-            "@/lib/web3/contract-service"
-          );
-          const rejectContractService = new RejectContractService(
-            CONTRACTS.SECUREFLOW_ESCROW,
-          );
-          txHash = await rejectContractService.rejectMilestone({
+          txHash = await contractService.rejectMilestone({
             escrow_id: Number(escrowId),
             milestone_index: milestoneIndex,
             reason: disputeReason,
             depositor: wallet.address || "",
           });
           break;
-        case "dispute":
-          // Use ContractService instead of contract.send - it handles the correct format
-          // Determine who can dispute: either payer (client) or beneficiary (freelancer)
+        case "dispute": {
           const disputerAddress = wallet.address || "";
           if (!disputerAddress) {
             throw new Error("Wallet address is required to dispute milestone");
           }
-          const { ContractService: DisputeContractService } = await import(
-            "@/lib/web3/contract-service"
-          );
-          const disputeContractService = new DisputeContractService(
-            CONTRACTS.SECUREFLOW_ESCROW,
-          );
-          txHash = await disputeContractService.disputeMilestone({
+          txHash = await contractService.disputeMilestone({
             escrow_id: Number(escrowId),
             milestone_index: milestoneIndex,
             reason: disputeReason,
             disputer: disputerAddress,
           });
           break;
+        }
         case "resubmit":
-          txHash = await contract.send(
-            "submit_milestone",
-            Number(escrowId),
-            milestoneIndex,
-            resubmitMessage || milestone.description,
-            wallet.address,
-          );
+          txHash = await contractService.resubmitMilestone({
+            escrow_id: Number(escrowId),
+            milestone_index: milestoneIndex,
+            description: resubmitMessage || milestone.description,
+            beneficiary: wallet.address || "",
+          });
           break;
       }
-
       if (txHash) {
+        setTxHash(txHash);
+        setTxPhase("success");
         const successMessages: Record<
           string,
           { title: string; description: string }
@@ -322,12 +319,80 @@ export function MilestoneActions({
         setDialogOpen(false);
         onSuccess();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const guidance = getTransactionErrorGuidance(error);
+      const pendingHash =
+        error instanceof PendingTransactionError ? error.txHash : null;
+      if (pendingHash) setTxHash(pendingHash);
+      setTxPhase(pendingHash ? "pending" : "failed");
+      setTxError(guidance);
+      setRetryAllowed(!pendingHash && guidance.retryable);
       toast({
-        title: "Transaction failed",
-        description: error.message || "Failed to submit transaction",
+        title: guidance.title,
+        description: guidance.message,
         variant: "destructive",
       });
+    } finally {
+      contractService.setTransactionProgressListener(undefined);
+      setIsLoading(false);
+    }
+  };
+
+  const checkPendingTransaction = async () => {
+    if (!txHash) return;
+
+    setIsLoading(true);
+    try {
+      const status = await contractService.getTransactionStatus(txHash);
+      if (status === "success") {
+        setTxPhase("success");
+        setTxError(null);
+        setRetryAllowed(false);
+        toast({
+          title: "Transaction confirmed",
+          description: "The pending transaction succeeded on-chain.",
+        });
+        window.dispatchEvent(
+          new CustomEvent("escrowUpdated", {
+            detail: {
+              escrowId: Number(escrowId),
+              milestoneIndex,
+              action: actionType,
+            },
+          }),
+        );
+        setDialogOpen(false);
+        onSuccess();
+        return;
+      }
+
+      if (status === "failed") {
+        setTxPhase("failed");
+        setRetryAllowed(true);
+        setTxError({
+          title: "Transaction failed on-chain",
+          message:
+            "The previous transaction is confirmed failed, so retrying will not double-submit it.",
+          action: "Review the inputs, then retry when ready.",
+          retryable: true,
+        });
+        return;
+      }
+
+      setTxPhase("pending");
+      setRetryAllowed(false);
+      setTxError({
+        title:
+          status === "not_found"
+            ? "Transaction not indexed yet"
+            : "Transaction still pending",
+        message: "No final on-chain result is available yet.",
+        action: "Check status again before retrying.",
+        retryable: false,
+      });
+    } catch (error: unknown) {
+      setTxError(getTransactionErrorGuidance(error));
+      setRetryAllowed(false);
     } finally {
       setIsLoading(false);
     }
@@ -390,6 +455,15 @@ export function MilestoneActions({
       resubmit: Send,
       resolve: CheckCircle2,
     }[actionType || "submit"] || Send;
+
+  const transactionStatusText: Record<TransactionPhase, string> = {
+    idle: "Ready",
+    building: "Building transaction",
+    signing: "Waiting for wallet signature",
+    pending: "Pending on-chain confirmation",
+    success: "Confirmed",
+    failed: "Failed",
+  };
 
   return (
     <>
@@ -656,6 +730,34 @@ export function MilestoneActions({
             </div>
           )}
 
+          {txPhase !== "idle" && (
+            <div className="my-4 space-y-2 rounded-lg border bg-muted/30 p-3 text-sm">
+              <div className="font-medium">
+                {transactionStatusText[txPhase]}
+              </div>
+              {txHash && (
+                <div className="break-all font-mono text-xs">Tx: {txHash}</div>
+              )}
+              {txError && (
+                <div className="text-muted-foreground">
+                  <div>{txError.message}</div>
+                  <div className="mt-1 font-medium">{txError.action}</div>
+                </div>
+              )}
+              {txPhase === "pending" && txHash && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={checkPendingTransaction}
+                  disabled={isLoading}
+                >
+                  Check transaction status
+                </Button>
+              )}
+            </div>
+          )}
+
           <DialogFooter>
             <Button
               variant="outline"
@@ -664,8 +766,19 @@ export function MilestoneActions({
             >
               Cancel
             </Button>
-            <Button onClick={handleAction} disabled={isLoading}>
-              {isLoading ? "Processing..." : dialogContent.confirmText}
+            <Button
+              onClick={handleAction}
+              disabled={
+                isLoading ||
+                txPhase === "pending" ||
+                (txPhase === "failed" && !retryAllowed)
+              }
+            >
+              {isLoading
+                ? transactionStatusText[txPhase]
+                : retryAllowed
+                  ? "Retry transaction"
+                  : dialogContent.confirmText}
             </Button>
           </DialogFooter>
         </DialogContent>

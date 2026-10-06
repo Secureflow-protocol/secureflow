@@ -1,4 +1,4 @@
-import { Routes, Route, Outlet } from "react-router-dom";
+import { Routes, Route, Outlet, useLocation } from "react-router-dom";
 import { Navbar } from "./components/navbar";
 import { Toaster } from "./components/ui/toaster";
 import { NewMessageWatcher } from "./components/new-message-watcher";
@@ -14,18 +14,25 @@ import ApprovalsPage from "./pages/ApprovalsPage";
 import FreelancersPage from "./pages/FreelancersPage";
 import MessagesPage from "./pages/MessagesPage";
 import Debugger from "./pages/Debugger";
+import { PanelErrorBoundary } from "./components/panel-error-boundary";
 
-const AppLayout = () => (
-  <>
-    <Navbar />
-    <div className="pt-16">
-      <Outlet />
-    </div>
-    <NewMessageWatcher />
-    <EscrowPoller />
-    <Toaster />
-  </>
-);
+const AppLayout = () => {
+  const location = useLocation();
+
+  return (
+    <>
+      <Navbar />
+      <div className="pt-16">
+        <PanelErrorBoundary key={location.key}>
+          <Outlet />
+        </PanelErrorBoundary>
+      </div>
+      <NewMessageWatcher />
+      <EscrowPoller />
+      <Toaster />
+    </>
+  );
+};
 
 function App() {
   return (
