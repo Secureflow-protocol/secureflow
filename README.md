@@ -13,7 +13,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React_19-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![CI](https://img.shields.io/github/actions/workflow/status/Secureflow-protocol/secureflow/node.yml?label=CI&style=flat-square)](https://github.com/Secureflow-protocol/secureflow/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/Secureflow-protocol/secureflow/node.yml?label=CI&style=flat-square)](https://github.com/Secureflow-protocol/secureflow/actions).
 
 **SecureFlow is a decentralized freelancer marketplace on Stellar (Soroban) providing secure, trustless, milestone-based escrow for freelance work — and a 🏆 winner of a global Stellar hackathon.**
 
