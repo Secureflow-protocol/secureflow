@@ -23,7 +23,7 @@
 
 ---
 
-## 🏆 Hackathon Recognition
+## 🏆 Hackathon Recognition.
 
 SecureFlow was built for and **won the [Stellar Scaffold Hackathon](https://stellar.org) — a global competition** challenging builders worldwide to ship production-grade dApps using the Stellar Scaffold CLI toolchain on Soroban. SecureFlow took the top spot.
 
